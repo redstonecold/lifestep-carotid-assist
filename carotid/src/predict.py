@@ -14,6 +14,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -31,12 +32,13 @@ def predict_folder(
     mm_per_px: float = TARGET_MM_PER_PX,
     threshold: float = 0.5,
     out_dir: Path | None = None,
+    start: int = 0,
 ) -> list[np.ndarray]:
     """
-    frame_dir 안의 PNG 파일 전체에 대해 마스크를 예측한다.
+    frame_dir 안의 PNG 파일(start번째부터)에 대해 마스크를 예측한다.
 
     Returns:
-        masks  프레임 순서와 같은 이진 마스크(0/1) 리스트 (원본 해상도)
+        masks  프레임 순서와 같은 이진 마스크(0/255) 리스트 (원본 해상도)
     """
     import os
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -48,7 +50,7 @@ def predict_folder(
           f"  (epoch={meta.get('epoch','?')}, val_dice={meta.get('val_dice','?')})")
     model.eval()
 
-    frames = sorted(frame_dir.glob("*.png"))
+    frames = sorted(frame_dir.glob("*.png"))[start:]
     if not frames:
         print(f"[predict] PNG 없음: {frame_dir}")
         return []
@@ -58,8 +60,8 @@ def predict_folder(
 
     masks = []
     for i, fpath in enumerate(frames):
-        img = _load_gray(fpath)
-        img = _rescale(img, mm_per_px, Image.BILINEAR)
+        img0 = _load_gray(fpath)
+        img = _rescale(img0, mm_per_px, Image.BILINEAR)
         img = _normalize(img)
 
         padded, orig_h, orig_w = pad_for_inference(img)
@@ -67,8 +69,9 @@ def predict_folder(
 
         with torch.no_grad():
             logit = model(tensor)
-        prob = torch.sigmoid(logit)[0, 0].cpu().numpy()
-        mask = (prob[:orig_h, :orig_w] > threshold).astype(np.uint8) * 255
+        prob = torch.sigmoid(logit)[0, 0].cpu().numpy()[:orig_h, :orig_w]
+        prob = cv2.resize(prob, (img0.shape[1], img0.shape[0]), interpolation=cv2.INTER_LINEAR)  # 원래 해상도로
+        mask = (prob > threshold).astype(np.uint8) * 255
 
         masks.append(mask)
 

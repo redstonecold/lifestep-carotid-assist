@@ -6,3 +6,4 @@ torch
 torchvision
 segmentation-models-pytorch
 timm
+matplotlib
