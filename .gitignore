@@ -1,0 +1,55 @@
+# ── 참고 문헌 ──────────────────────────────────────────
+papers/
+
+# ── 원본·처리 데이터 (용량 크고 재생성 가능) ─────────────
+data/raw/
+carotid/data/frames/
+carotid/data/processed/
+carotid/data/labels/
+carotid/data/candidates/
+
+# ── 학습 산출물 ────────────────────────────────────────
+carotid/runs/
+carotid/checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# ── 개인정보·식별 정보 ──────────────────────────────────
+carotid/private/
+
+# ── Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+
+# ── Jupyter ────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── macOS ──────────────────────────────────────────────
+.DS_Store
+*.DS_Store
+
+# ── IDE ────────────────────────────────────────────────
+.vscode/
+.idea/
+
+# ── 공개 저장소 제외 (2026-11-10) ───────────────────────
+# 대상자 초음파 영상이 담긴 이미지
+carotid/reports/*.png
+carotid/reports/segments/
+carotid/reports/slides/
+# 촬영일 등 DICOM 기술 정보
+carotid/reports/dicom_inventory.json
+# 도구 상태·로그
+.omc/
+**/.omc/
+.omx/*
+!.omx/plans/
+.omx/plans/.omc/
+data/.Rhistory

@@ -1,0 +1,24 @@
+video_id,person_id,format,frames,fps,duration_s,crop_x0,crop_y0,crop_x1,crop_y1,mm_per_px,calib_source,ecg_on_screen,use,note
+V01,P003,AVI,2164,28.775,75.17,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,구간 선별
+V02,P003,AVI,2091,28.775,72.63,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,나쁨: 정맥 겹침·탐촉자 이동
+V03,P003,AVI,2156,28.775,74.89,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,좋음
+V04,P003,AVI,2209,28.775,76.73,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,나쁨: 큰 정맥
+V05,P003,AVI,2095,28.775,72.77,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,좋음~보통: 어두움
+V06,P003,AVI,2254,28.775,78.3,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,좋음
+V07,P003,AVI,2164,28.775,75.17,96,36,548,384,0.078125,manual_tick_unconfirmed,Y,Y,좋음
+V12,P001,WMV,108,36.672,2.94,73,64,795,569,0.069444,dicom_borrowed,N,Y,검증
+V13,P001,WMV,111,37.236,2.98,73,64,795,569,0.069444,dicom_borrowed,N,Y,"검증, 0.8초 이전 제외"
+V14,P002,WMV,110,37.112,2.96,73,64,795,569,0.069444,dicom_borrowed,N,Y,V14 DICOM 사본과 동일 내용
+V15,P002,WMV,110,36.876,2.98,73,64,795,569,0.069444,dicom_borrowed,N,Y,
+V16,P004,DICOM,559,37.164,15.01,73,64,807,568,0.069444,dicom_header,N,Y,"보통, 내강 얇음"
+V17,P005,DICOM,562,37.369,15.01,73,64,807,568,0.069444,dicom_header,N,Y,구간 선별(#450~): B등급 위주
+V18,P005,DICOM,298,38.831,7.65,73,64,807,568,0.069444,dicom_header,N,Y,보통~좋음
+V19,P005,DICOM,171,37.952,4.48,73,64,807,568,0.069444,dicom_header,N,Y,보통~좋음
+V20,P006,DICOM,559,37.487,14.89,73,64,807,568,0.069444,dicom_header,N,Y,구간 선별(#280~)
+V21,P007,DICOM,560,37.26,15.0,73,64,807,568,0.069444,dicom_header,N,N,제외: 종단면 불확실
+V22,P007,DICOM,386,38.317,10.05,73,64,807,568,0.069444,dicom_header,N,Y,"보통~나쁨: 회전 촬영, #114~189 제외"
+V23,P008,DICOM,569,37.836,15.01,73,64,807,568,0.069444,dicom_header,N,Y,보통: 비스듬한 종단면
+V24,P009,DICOM,117,38.308,3.03,73,64,807,568,0.069444,dicom_header,N,Y,좋음
+V25,P010,DICOM,116,38.152,3.01,73,64,807,568,0.069444,dicom_header,N,Y,좋음
+V26,P010,DICOM,114,37.331,3.03,73,64,807,568,0.069444,dicom_header,N,Y,좋음
+V27,P011,DICOM,117,38.532,3.01,73,64,807,568,0.069444,dicom_header,N,Y,좋음
