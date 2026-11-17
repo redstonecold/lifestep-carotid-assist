@@ -10,6 +10,7 @@ carotid/data/candidates/
 
 # ── 학습 산출물 ────────────────────────────────────────
 carotid/runs/
+carotid/runs_*/
 carotid/checkpoints/
 *.pt
 *.pth

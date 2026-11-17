@@ -93,8 +93,19 @@ python tools/select_label_frames.py batch03     # 학습 232 · 검증 25 · 시
 python tools/select_label_frames.py repeat01    # A·C로 라벨된 프레임 중 20장 (사람별로 고루)
 ```
 
-- batch03에는 그동안 제외했던 구간(횡단면, 탐촉자 이동, P007 V21 전체)의 프레임이 섞여 있다. 혈관이 안 보이면 **F를 고르고 그리지 않는다.**
-- batch03의 시험 P004 10장은 모델 초안 없이 직접 그린다.
+batch03은 프로젝트를 직접 만들지 않는다. 초기 모델(batch01·02로 학습)의 초안을 다각형으로 미리 넣은 프로젝트를 스크립트가 만든다.
+
+```bash
+# 토큰: Label Studio 오른쪽 위 계정 → Account & Settings → Personal Access Token 복사 → private/ls_token 에 저장
+python tools/ls_prelabel.py batch03 --checkpoint runs/default/best.pt
+```
+
+- 프로젝트 `carotid_batch03`이 생기고, 학습·검증 257장에는 빨간 다각형 초안이 들어 있다. 초안이 화면에 안 보이면 작업 화면 오른쪽의 Predictions 탭에서 초안을 고르거나, 프로젝트 Settings → Annotation에서 **Use predictions to prelabel tasks**를 켠다.
+- 초안은 **틀린 경계만 고친다.** 점을 끌어 옮기고, 필요 없는 조각은 지운다. 정맥을 칠했으면 지우고 동맥을 새로 그린다. 그리는 기준은 3절과 같다.
+- 세트(A/B/C/F/X)는 초안에 없으므로 매번 직접 고른다. 혈관이 안 보이면 **F를 고르고 초안을 지운다.**
+- batch03에는 그동안 제외했던 구간(횡단면, 탐촉자 이동, P007 V21 전체)의 프레임이 섞여 있다.
+- 시험 P004 10장은 초안이 없다. 처음부터 직접 그린다.
+- 초안 마스크는 `labeling/batch03/drafts/`에 따로 남는다(초안 대비 수정량 측정용).
 - 반복 라벨은 batch01·02를 그린 날과 **다른 날**, 이전 라벨을 보지 않고 그린다. 변환할 때 `--repeat`를 붙이면 `data/labels_repeat/`에 따로 저장되고 원래 라벨은 바뀌지 않는다.
 
 ```bash
