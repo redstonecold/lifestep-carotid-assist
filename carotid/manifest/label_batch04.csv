@@ -1,0 +1,2 @@
+order,person_id,video_id,frame_idx,time_s,split,label_image,file
+1,P010,V26,53,1.393,train,001_P010_V26_frame_0053.png,data/frames/P010/V26/frame_0053.png
