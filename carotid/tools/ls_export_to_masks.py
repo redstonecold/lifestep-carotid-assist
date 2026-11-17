@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 NAME_RE = re.compile(r"(\d{3}_P\d{3}_V\d{2}_frame_\d+\.png)$")
 GRADES = ("A", "B", "C", "F", "X")
+X_REASONS = {"X", "동맥·정맥 구분 불가", "다른 혈관과 구분 불가", "기타(메모에 기록)"}   # label_config.xml
 TOTAL_LABELS = 495 + 20   # 계획서 9절 목표 전체 + 반복 라벨
 
 def first(results, name, key):
@@ -60,6 +61,8 @@ def main():
             fr["grade"], fr["note"] = grade, note
             if grade == "X":   # 다른 세트는 기존 구간 표시(예: 종단면 구간 밖)를 그대로 둔다
                 fr["exclude_reason"] = reason or "X"
+            elif fr["exclude_reason"] in X_REASONS:   # X였다가 다른 세트로 바뀐 경우 X 사유만 지운다
+                fr["exclude_reason"] = ""
         if grade == "X":
             if not a.repeat: fr["label_status"] = "excluded_x"
             continue
