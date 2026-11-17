@@ -11,6 +11,12 @@ private/ls_token 파일에 저장(커밋 제외 폴더)하거나 LS_TOKEN 환경
 사용:
     python tools/ls_prelabel.py batch03 --checkpoint runs/default/best.pt
 변환은 기존과 같다: python tools/ls_export_to_masks.py <export.json> --batch batch03
+
+이미 라벨한 배치를 다른 모델 초안으로 다시 확인할 때(예: batch02 경계 기준 맞춤, 2026-11-17):
+    python tools/ls_prelabel.py batch02 --checkpoint runs/no_b02/default/best.pt \
+        --project carotid_batch02_fix --recheck
+  --recheck: 시험(P004)에도 초안을 넣고(사람이 그린 라벨을 고치는 것이므로), 세트·제외 사유를 frames.csv 값으로
+  미리 채운다. F는 다각형 없이, X는 세트·사유만 넣는다. 변환은 --batch batch02 그대로
 """
 import argparse, csv, os, sys
 from pathlib import Path
@@ -28,6 +34,7 @@ MIN_AREA_RATIO = 0.05   # 가장 큰 영역의 5% 미만 조각은 버림(점 �
 MAX_POLYS = 2
 EPS_PX = 1.5            # 외곽선 단순화(px). 점이 적어야 고치기 쉽다
 UPLOAD_CHUNK = 50
+X_REASONS = {"동맥·정맥 구분 불가", "다른 혈관과 구분 불가", "기타(메모에 기록)"}   # label_config.xml 선택지
 
 
 class LS:
@@ -103,7 +110,10 @@ def main():
     ap.add_argument("batch"); ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--url", default=os.environ.get("LS_URL", "http://localhost:8080"))
     ap.add_argument("--threshold", type=float, default=0.5)
+    ap.add_argument("--project", default=None, help="Label Studio 프로젝트 이름 (기본 carotid_<batch>)")
+    ap.add_argument("--recheck", action="store_true", help="라벨한 배치 다시 확인: 시험 포함 초안 + 세트 미리 채움")
     a = ap.parse_args()
+    title = a.project or f"carotid_{a.batch}"
     tf = ROOT / "private/ls_token"
     token = os.environ.get("LS_TOKEN") or (tf.read_text().strip() if tf.exists() else "")
     if not token:
@@ -114,7 +124,7 @@ def main():
     img_dir = ROOT / "labeling" / a.batch / "images"
 
     ls = LS(a.url, token)
-    pid = ls.project(f"carotid_{a.batch}", (ROOT / "labeling/label_config.xml").read_text(encoding="utf-8"))
+    pid = ls.project(title, (ROOT / "labeling/label_config.xml").read_text(encoding="utf-8"))
     have = {task_name(t) for t in ls.tasks(pid)}
     todo = [r for r in rows if r["label_image"] not in have]
     for i in range(0, len(todo), UPLOAD_CHUNK):
@@ -125,23 +135,34 @@ def main():
         print(f"  이미지 업로드 {i + len(chunk)}/{len(todo)}")
 
     tasks = {task_name(t): t for t in ls.tasks(pid)}
-    need = [r for r in rows if r["split"] != "test" and r["label_image"] in tasks
+    frames = {r["file"]: r for r in csv.DictReader(open(ROOT / "manifest/frames.csv", encoding="utf-8"))}
+    need = [r for r in rows if (a.recheck or r["split"] != "test") and r["label_image"] in tasks
             and not tasks[r["label_image"]].get("total_predictions")]
     if need:
-        model_version = f"init_{ckpt.parent.name}"
+        model_version = f"{'recheck' if a.recheck else 'init'}_{ckpt.parent.parent.name}_{ckpt.parent.name}"
         masks = predict_files([img_dir / r["label_image"] for r in need], ckpt,
                               mm_per_px=[mm[r["video_id"]] for r in need], threshold=a.threshold,
-                              out_dir=ROOT / "labeling" / a.batch / "drafts")
+                              out_dir=ROOT / "labeling" / a.batch / ("recheck_drafts" if a.recheck else "drafts"))
         empty = 0
         for r, m in zip(need, masks):
             res = mask_to_result(m)
-            empty += not res
+            if a.recheck:
+                fr = frames[r["file"]]
+                if fr["grade"] in ("F", "X"):
+                    res = []
+                res.append({"from_name": "grade", "to_name": "image", "type": "choices",
+                            "value": {"choices": [fr["grade"]]}})
+                if fr["grade"] == "X" and fr["exclude_reason"] in X_REASONS:
+                    res.append({"from_name": "exclude_reason", "to_name": "image", "type": "choices",
+                                "value": {"choices": [fr["exclude_reason"]]}})
+            empty += not any(x["type"] == "polygonlabels" for x in res)
             ls.call("POST", "/api/predictions", json={"task": tasks[r["label_image"]]["id"], "result": res,
                                                       "model_version": model_version})
         ls.call("PATCH", f"/api/projects/{pid}", json={"model_version": model_version, "show_collab_predictions": True})
         print(f"초안 {len(need)}장 올림 (빈 초안 {empty}장 = 모델이 혈관을 못 찾음 → F 후보이거나 직접 그림)")
     n_test = sum(r["split"] == "test" for r in rows)
-    print(f"완료: 프로젝트 carotid_{a.batch} 작업 {len(tasks)}장, 시험 {n_test}장은 초안 없음(직접 그림)")
+    print(f"완료: 프로젝트 {title} 작업 {len(tasks)}장"
+          + ("" if a.recheck else f", 시험 {n_test}장은 초안 없음(직접 그림)"))
     print(f"열기: {a.url}/projects/{pid}/data")
 
 
