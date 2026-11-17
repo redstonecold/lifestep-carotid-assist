@@ -9,7 +9,7 @@
     <Choice value="A" hint="위·아래 벽의 내벽 흰 띠까지 선명, 혈관이 화면 좌우 끝까지 이어짐 → 보이는 내강을 화면 끝까지 그림"/>
     <Choice value="B" hint="내강은 보이지만 내벽 흰 띠가 안 보이거나 흐림 → 보이는 내강을 그림"/>
     <Choice value="C" hint="위·아래 벽은 보이지만 혈관이 화면 중간에서 끝나거나 끊김 → 보이는 내강만 그림"/>
-    <Choice value="F" hint="위·아래 벽 중 한쪽이 안 보이거나 경동맥이 아예 안 보임(횡단면·탐촉자 이동) → 확실한 내강만 그림, 없으면 그리지 않음"/>
+    <Choice value="F" hint="위·아래 벽 중 한쪽이 안 보이거나 경동맥이 아예 안 보임(횡단면·탐촉자 이동) → 확실한 내강은 그림(일부만 보여도 비워 두지 않음), 경동맥이 아예 없을 때만 그리지 않음"/>
     <Choice value="X" hint="동맥·정맥 구분을 확신할 수 없음 → 제외(다각형 그리지 않음)"/>
   </Choices>
   <View visibleWhen="choice-selected" whenTagName="grade" whenChoiceValue="X">

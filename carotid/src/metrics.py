@@ -6,7 +6,7 @@
   경계   HD95 · ASSD (mm)                                 (A·B·C)
   측정   내경 MAE · 편향 · Bland-Altman 일치 한계 · ICC(2,1) (A·C)
          박동별 변화량 MAE                                  (박동 분석 후, report.py)
-  검출   F 오검출률 · 미검출률                               (F / A·B·C)
+  검출   F 오검출률 · 미검출률                               (정답이 빈 F / A·B·C)
   안정성 프레임 간 내경 변동                                 (라벨 없는 연속 프레임)
 
 결정 지표는 Dice · F 오검출률 · 내경 MAE 3개 (train.py `select_best`).
@@ -160,11 +160,13 @@ def summarize(rows: list[dict]) -> dict:
     seg  = [r for r in rows if r["grade"] in ("A", "B", "C")]
     meas = [r for r in rows if r["grade"] in ("A", "C")
             and r["diam_ai"] == r["diam_ai"] and r["diam_gt"] == r["diam_gt"]]
-    fset = [r for r in rows if r["grade"] == "F"]
+    # F 오검출률은 정답이 빈 F(혈관 없음)에서만 잰다. 확실한 내강을 일부 그린 F는 칠해도 오검출이 아니다(2026-11-17)
+    fset = [r for r in rows if r["grade"] == "F" and float(r["area_gt_mm2"]) == 0]
     ai = [r["diam_ai"] for r in meas]
     gt = [r["diam_gt"] for r in meas]
     out = {
         "n_frames": len(rows), "n_seg": len(seg), "n_meas": len(meas), "n_f": len(fset),
+        "n_f_partial": sum(1 for r in rows if r["grade"] == "F") - len(fset),
         "dice": _nanmean(r["dice"] for r in seg),
         "iou": _nanmean(r["iou"] for r in seg),
         "precision": _nanmean(r["precision"] for r in seg),
