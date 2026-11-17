@@ -107,18 +107,19 @@ def mask_to_result(mask):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("batch"); ap.add_argument("--checkpoint", required=True)
+    ap.add_argument("batch"); ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--url", default=os.environ.get("LS_URL", "http://localhost:8080"))
     ap.add_argument("--threshold", type=float, default=0.5)
     ap.add_argument("--project", default=None, help="Label Studio 프로젝트 이름 (기본 carotid_<batch>)")
     ap.add_argument("--recheck", action="store_true", help="라벨한 배치 다시 확인: 시험 포함 초안 + 세트 미리 채움")
+    ap.add_argument("--no-drafts", action="store_true", help="초안 없이 이미지만 올림(반복 라벨·시험 재확인 등)")
     a = ap.parse_args()
     title = a.project or f"carotid_{a.batch}"
     tf = ROOT / "private/ls_token"
     token = os.environ.get("LS_TOKEN") or (tf.read_text().strip() if tf.exists() else "")
     if not token:
         sys.exit("Label Studio 토큰을 private/ls_token 에 저장하거나 LS_TOKEN 환경 변수에 넣으세요(파일 위쪽 설명).")
-    ckpt = ROOT / a.checkpoint
+    ckpt = ROOT / a.checkpoint if a.checkpoint else None
     rows = list(csv.DictReader(open(ROOT / f"manifest/label_{a.batch}.csv", encoding="utf-8")))
     mm = {r["video_id"]: float(r["mm_per_px"]) for r in csv.DictReader(open(ROOT / "manifest/videos.csv", encoding="utf-8"))}
     img_dir = ROOT / "labeling" / a.batch / "images"
@@ -138,6 +139,10 @@ def main():
     frames = {r["file"]: r for r in csv.DictReader(open(ROOT / "manifest/frames.csv", encoding="utf-8"))}
     need = [r for r in rows if (a.recheck or r["split"] != "test") and r["label_image"] in tasks
             and not tasks[r["label_image"]].get("total_predictions")]
+    if need and a.no_drafts:
+        need = []
+    elif need and not ckpt:
+        sys.exit("--checkpoint 가 필요합니다(초안 없이 올리려면 --no-drafts).")
     if need:
         model_version = f"{'recheck' if a.recheck else 'init'}_{ckpt.parent.parent.name}_{ckpt.parent.name}"
         masks = predict_files([img_dir / r["label_image"] for r in need], ckpt,
@@ -162,7 +167,7 @@ def main():
         print(f"초안 {len(need)}장 올림 (빈 초안 {empty}장 = 모델이 혈관을 못 찾음 → F 후보이거나 직접 그림)")
     n_test = sum(r["split"] == "test" for r in rows)
     print(f"완료: 프로젝트 {title} 작업 {len(tasks)}장"
-          + ("" if a.recheck else f", 시험 {n_test}장은 초안 없음(직접 그림)"))
+          + ("  (초안 없음)" if a.no_drafts else "" if a.recheck else f", 시험 {n_test}장은 초안 없음(직접 그림)"))
     print(f"열기: {a.url}/projects/{pid}/data")
 
 
