@@ -1,6 +1,6 @@
-numpy
+numpy>=2.3.2   # 2.2.x는 Python 3.14에서 임시 배열 재사용 버그로 큰 배열 값이 바뀜(2026-11-17)
 pillow
-opencv-python
+opencv-python>=5.0   # 4.12는 numpy<2.3을 요구
 pydicom
 torch
 torchvision

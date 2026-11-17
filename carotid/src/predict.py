@@ -40,6 +40,22 @@ def predict_folder(
     Returns:
         masks  프레임 순서와 같은 이진 마스크(0/255) 리스트 (원본 해상도)
     """
+    frames = sorted(frame_dir.glob("*.png"))[start:]
+    if not frames:
+        print(f"[predict] PNG 없음: {frame_dir}")
+        return []
+    return predict_files(frames, checkpoint, mm_per_px, threshold, out_dir)
+
+
+def predict_files(
+    frames: list[Path],
+    checkpoint: Path,
+    mm_per_px: float | list[float] = TARGET_MM_PER_PX,
+    threshold: float = 0.5,
+    out_dir: Path | None = None,
+) -> list[np.ndarray]:
+    """PNG 파일 목록에 대해 마스크(0/255, 원본 해상도)를 예측한다. 라벨 초안(tools/ls_prelabel.py)도 이 함수를 쓴다.
+    mm_per_px는 하나의 값이거나 frames와 같은 길이의 목록(영상이 섞인 경우)."""
     import os
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
@@ -50,18 +66,14 @@ def predict_folder(
           f"  (epoch={meta.get('epoch','?')}, val_dice={meta.get('val_dice','?')})")
     model.eval()
 
-    frames = sorted(frame_dir.glob("*.png"))[start:]
-    if not frames:
-        print(f"[predict] PNG 없음: {frame_dir}")
-        return []
-
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
 
     masks = []
     for i, fpath in enumerate(frames):
         img0 = _load_gray(fpath)
-        img = _rescale(img0, mm_per_px, Image.BILINEAR)
+        mm = mm_per_px[i] if isinstance(mm_per_px, list) else mm_per_px
+        img = _rescale(img0, mm, Image.BILINEAR)
         img = _normalize(img)
 
         padded, orig_h, orig_w = pad_for_inference(img)
