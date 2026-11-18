@@ -34,7 +34,7 @@ from scipy.signal import find_peaks, savgol_filter
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.metrics import AREA_MIN_MM2, diameter_mm
+from src.metrics import AREA_MIN_MM2, diameter_geometry
 from src.predict import predict_files
 
 # 1단계: 프레임
@@ -74,8 +74,13 @@ def _frame_features(masks, confs, mm):
         if area >= AREA_MIN_MM2:
             ys, xs = np.nonzero(b)
             ev = np.linalg.eigvalsh(np.cov(np.stack([xs, ys]).astype(np.float64)))
-            f.update(diam_mm=diameter_mm(b, mm), cx_mm=float(xs.mean() * mm), cy_mm=float(ys.mean() * mm),
+            g = diameter_geometry(b, mm)
+            f.update(diam_mm=g["diam_mm"] if g else float("nan"), cx_mm=float(xs.mean() * mm), cy_mm=float(ys.mean() * mm),
                      elong=float(np.sqrt(ev[1] / max(ev[0], 1e-6))))
+            if g:   # 화면에 측정 위치를 그리기 위한 값(앱). 소수 1~3자리로 줄여 저장
+                f["geo"] = {"c": np.round(g["c"], 1).tolist(), "u": np.round(g["u"], 4).tolist(),
+                            "v": np.round(g["v"], 4).tolist(), "lo": round(g["lo"], 1), "hi": round(g["hi"], 1),
+                            "med": np.round(g["med"], 1).tolist(), "cal": np.round(g["cal"], 1).tolist()}
             if prev is not None and prev.any():
                 cols = b.any(0) & prev.any(0)
                 if cols.any():
@@ -187,17 +192,30 @@ def _beats(d, ok, t):
     return out, {"grid": grid, "sig": sig}
 
 
-def analyze(frames: list[Path], times: np.ndarray, mm: float, checkpoint: Path, mask_dir: Path | None = None) -> dict:
+def analyze(frames: list[Path], times: np.ndarray, mm: float, checkpoint: Path, mask_dir: Path | None = None,
+            on_progress=None, return_masks: bool = False) -> dict:
     confs: list = []
-    masks = predict_files(frames, checkpoint, mm_per_px=mm, confs=confs, out_dir=mask_dir)
+    masks = predict_files(frames, checkpoint, mm_per_px=mm, confs=confs, out_dir=mask_dir, on_progress=on_progress)
+    res = measure_masks(masks, confs, times, mm)
+    res["confs"] = confs
+    return {**res, **({"_masks": masks} if return_masks else {})}
+
+
+def measure_masks(masks: list, confs: list, times: np.ndarray, mm: float, edited: set | None = None) -> dict:
+    """마스크(모델 결과 또는 사람이 고친 것)에서 측정·판정·박동 요약. 모델을 다시 돌리지 않는다.
+    edited: 사람이 경계를 고친 프레임 번호. 확신도 판정에서 빼고(사람 확인) 결과에 표시한다."""
+    edited = edited or set()
+    confs = [1.0 if i in edited else c for i, c in enumerate(confs)]
     feats = _frame_features(masks, confs, mm)
+    for i in edited:
+        feats[i]["edited"] = True
     t = np.asarray(times, float)
     flags = _flag_frames(feats, t)
     d = np.array([f["diam_mm"] for f in feats])
     ok = np.array([not r for r in flags]) & np.isfinite(d)
     beats, sig = _beats(d, ok, t)
     good = [b for b in beats if b["reliable"]]
-    summary = {"n_frames": len(frames), "frames_ok": int(ok.sum()), "n_beats": len(beats), "n_reliable": len(good),
+    summary = {"n_frames": len(masks), "frames_ok": int(ok.sum()), "n_beats": len(beats), "n_reliable": len(good),
                "status": "자동측정" if len(good) >= MIN_RELIABLE_BEATS else "자동측정 불가"}
     if len(good) >= MIN_RELIABLE_BEATS:
         summary.update(dmin_mm=float(np.median([b["dmin"] for b in good])),

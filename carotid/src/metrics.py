@@ -76,13 +76,26 @@ def diameter_mm(mask: np.ndarray, mm: float) -> float:
       3. 축을 따라 1픽셀 간격으로 자르고, 각 위치에서 축에 수직인 방향의 내강 폭을 잼
       4. 축 길이의 가운데 50%(중앙 안정 구간)의 폭 중앙값 × mm/px
     """
+    g = diameter_geometry(mask, mm)
+    return g["diam_mm"] if g else NAN
+
+
+def diameter_geometry(mask: np.ndarray, mm: float, n_show: int = 9) -> dict | None:
+    """
+    diameter_mm과 같은 계산 + 화면에 그릴 측정 위치(앱의 캘리퍼 표시용).
+    점 좌표 = c + t·u + q·v (픽셀). 반환:
+      c, u, v      중심, 축 방향, 수직 방향
+      lo, hi       측정 구간(축 위치, 가운데 50%)
+      med          대표 내경(중앙값)에 해당하는 위치 [t, q_min, q_max]
+      cal          측정 구간 안에서 고르게 고른 n_show개 폭 [[t, q_min, q_max], ...]
+    """
     m = mask.astype(np.uint8)
     n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
     if n < 2:
-        return NAN
+        return None
     k = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
     if stats[k, cv2.CC_STAT_AREA] < DIAM_MIN_PX:
-        return NAN
+        return None
     ys, xs = np.nonzero(lab == k)
     pts = np.stack([xs, ys], 1).astype(np.float64)
     c = pts.mean(0)
@@ -91,12 +104,25 @@ def diameter_mm(mask: np.ndarray, mm: float) -> float:
     t = np.round((pts - c) @ u).astype(int)
     q = (pts - c) @ v
     lo, hi = np.percentile(t, 25), np.percentile(t, 75)
-    widths = []
+    widths, spans = [], []
     for ti in range(int(lo), int(hi) + 1):
         sel = q[t == ti]
         if len(sel):
             widths.append(sel.max() - sel.min() + 1)
-    return float(np.median(widths) * mm) if widths else NAN
+            spans.append([ti, float(sel.min()), float(sel.max())])
+    if not widths:
+        return None
+    w = np.array(widths)
+    med = float(np.median(w))
+    pick = np.linspace(0, len(spans) - 1, min(n_show, len(spans))).round().astype(int)
+    # 표시할 대표 위치: 폭이 중앙값과 0.5px 이내인 곳 중 측정 구간 가운데에 가장 가까운 곳
+    # (가장 먼저 나온 곳을 고르면 구간 한쪽 끝에서 프레임마다 튐)
+    ts = np.array([s[0] for s in spans], dtype=float)
+    near = np.abs(w - med) <= max(0.5, float(np.min(np.abs(w - med))))
+    k_med = int(np.argmin(np.where(near, np.abs(ts - (lo + hi) / 2), np.inf)))
+    return {"diam_mm": med * mm, "c": c.tolist(), "u": u.tolist(), "v": v.tolist(),
+            "lo": float(lo), "hi": float(hi), "med": spans[k_med],
+            "cal": [spans[i] for i in pick]}
 
 
 def frame_metrics(pred: np.ndarray, gt: np.ndarray, mm: float, grade: str) -> dict:

@@ -8,3 +8,7 @@ segmentation-models-pytorch
 timm
 matplotlib
 scipy
+fastapi
+uvicorn[standard]
+python-multipart
+watchdog
