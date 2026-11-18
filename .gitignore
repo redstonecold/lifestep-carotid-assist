@@ -11,6 +11,8 @@ carotid/data/candidates/
 # ── 학습 산출물 ────────────────────────────────────────
 carotid/runs/
 carotid/runs_*/
+# 앱 분석 작업(대상자 영상 프레임 포함)
+carotid/app_data/
 carotid/checkpoints/
 *.pt
 *.pth

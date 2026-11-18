@@ -54,6 +54,7 @@ def predict_files(
     threshold: float = 0.5,
     out_dir: Path | None = None,
     confs: list | None = None,
+    on_progress=None,
 ) -> list[np.ndarray]:
     """PNG 파일 목록에 대해 마스크(0/255, 원본 해상도)를 예측한다. 라벨 초안(tools/ls_prelabel.py)도 이 함수를 쓴다.
     mm_per_px는 하나의 값이거나 frames와 같은 길이의 목록(영상이 섞인 경우).
@@ -94,6 +95,8 @@ def predict_files(
         if out_dir:
             Image.fromarray(mask).save(out_dir / (fpath.stem + "_mask.png"))
 
+        if on_progress:
+            on_progress(i + 1, len(frames))
         if (i + 1) % 100 == 0:
             print(f"  {i+1}/{len(frames)} 프레임 처리 중...")
 
