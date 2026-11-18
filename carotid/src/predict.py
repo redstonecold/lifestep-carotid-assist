@@ -53,9 +53,11 @@ def predict_files(
     mm_per_px: float | list[float] = TARGET_MM_PER_PX,
     threshold: float = 0.5,
     out_dir: Path | None = None,
+    confs: list | None = None,
 ) -> list[np.ndarray]:
     """PNG 파일 목록에 대해 마스크(0/255, 원본 해상도)를 예측한다. 라벨 초안(tools/ls_prelabel.py)도 이 함수를 쓴다.
-    mm_per_px는 하나의 값이거나 frames와 같은 길이의 목록(영상이 섞인 경우)."""
+    mm_per_px는 하나의 값이거나 frames와 같은 길이의 목록(영상이 섞인 경우).
+    confs에 빈 목록을 넘기면 프레임별 확신도(칠한 영역의 평균 확률, 칠한 곳이 없으면 최대 확률)를 채운다."""
     import os
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
@@ -86,6 +88,8 @@ def predict_files(
         mask = (prob > threshold).astype(np.uint8) * 255
 
         masks.append(mask)
+        if confs is not None:
+            confs.append(float(prob[mask > 0].mean()) if mask.any() else float(prob.max()))
 
         if out_dir:
             Image.fromarray(mask).save(out_dir / (fpath.stem + "_mask.png"))

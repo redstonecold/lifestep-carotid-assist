@@ -160,7 +160,8 @@ def summarize(rows: list[dict]) -> dict:
     seg  = [r for r in rows if r["grade"] in ("A", "B", "C")]
     meas = [r for r in rows if r["grade"] in ("A", "C")
             and r["diam_ai"] == r["diam_ai"] and r["diam_gt"] == r["diam_gt"]]
-    # F 오검출률은 정답이 빈 F(혈관 없음)에서만 잰다. 확실한 내강을 일부 그린 F는 칠해도 오검출이 아니다(2026-11-17)
+    # F 오검출률은 정답이 빈 F(혈관 없음 또는 탐촉자 이동으로 측정하면 안 되는 장면)에서만 잰다.
+    # 확실한 내강을 일부 그린 F는 칠해도 오검출이 아니다(2026-11-17)
     fset = [r for r in rows if r["grade"] == "F" and float(r["area_gt_mm2"]) == 0]
     ai = [r["diam_ai"] for r in meas]
     gt = [r["diam_gt"] for r in meas]

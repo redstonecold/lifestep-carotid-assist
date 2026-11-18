@@ -272,15 +272,21 @@ def rank_groups(results: list[dict], groups: set | None = None) -> list[str]:
     """
     설정(그룹, 시드 반복은 평균)을 좋은 순서로 정렬한다.
       1. Dice가 최고보다 0.01 이상 낮으면 탈락
-      2. F 오검출률 20% 초과 탈락 (F 프레임이 없으면 통과)
+      2. F 오검출률 20% 초과 탈락 (F 프레임이 없으면 통과. 1을 통과한 설정이 모두 걸리면 이 기준은 건너뜀)
       3. 내경 MAE 오름차순, 0.02mm 이내면 HD95 오름차순, 그래도 같으면 먼저 정의된(단순한) 설정
     탈락한 설정은 뒤에 Dice 순으로 붙인다.
     """
     agg: dict[str, dict] = {}
     order = []
+    seen_cfg: dict[str, str] = {}   # 이름만 다르고 설정이 같은 그룹(예: s2_medium_256 = 1단계 1등)은 먼저 나온 것만 센다
     for r in results:
         if r.get("status") not in ("done", "diverged") or (groups and r["group"] not in groups):
             continue
+        if r.get("cfg_json"):
+            c = json.loads(r["cfg_json"])
+            key = json.dumps({k: v for k, v in c.items() if k not in ("name", "group")}, sort_keys=True)
+            if seen_cfg.setdefault(key, r["group"]) != r["group"]:
+                continue
         g = agg.setdefault(r["group"], {k: [] for k in ("dice", "f_fp_rate", "diam_mae", "hd95")})
         if r["group"] not in order:
             order.append(r["group"])
@@ -291,8 +297,11 @@ def rank_groups(results: list[dict], groups: set | None = None) -> list[str]:
     if not m:
         return []
     best_dice = max((v["dice"] for v in m.values() if v["dice"] == v["dice"]), default=float("nan"))
-    ok = [g for g in order if m[g]["dice"] >= best_dice - 0.01
-          and not (m[g]["f_fp_rate"] > 0.2)]
+    near = [g for g in order if m[g]["dice"] >= best_dice - 0.01]
+    ok = [g for g in near if not (m[g]["f_fp_rate"] > 0.2)]
+    if near and not ok:
+        # 모든 설정이 F 기준에 걸리면 F 기준만 건너뛰고 내경 MAE·HD95 비교는 그대로 한다(2026-11-17)
+        ok = near
     out = []
     for g in sorted(ok, key=lambda g: (m[g]["diam_mae"] if m[g]["diam_mae"] == m[g]["diam_mae"] else 1e9,
                                        order.index(g))):
@@ -352,10 +361,20 @@ def _load_results(path: Path) -> list[dict]:
 def _run_list(configs, results, results_csv, runs_root, root, overrides,
               persons_of=lambda c: (None, None)):
     done = {r["name"] for r in results if r.get("status") in ("done", "diverged")}
+    same = lambda c: json.dumps({k: v for k, v in {**DEFAULTS, **c}.items() if k not in ("name", "group")}, sort_keys=True)
     for cfg in configs:
         cfg = {**cfg, **overrides}
         if cfg["name"] in done:
             print(f"[SKIP] {cfg['name']} (이미 완료)")
+            continue
+        prev = next((r for r in results if r.get("status") in ("done", "diverged") and r.get("cfg_json")
+                     and same(json.loads(r["cfg_json"])) == same(cfg)), None)
+        if prev and not persons_of(cfg)[0]:
+            # 이름만 다르고 설정이 같으면(예: s3_freeze0 = 기준 설정) 다시 학습하지 않고 결과를 가져온다
+            print(f"[SKIP] {cfg['name']} = {prev['name']} (같은 설정, 결과 재사용)")
+            results.append({**prev, "name": cfg["name"], "group": cfg.get("group", cfg["name"]),
+                            "cfg_json": json.dumps({**DEFAULTS, **cfg}), "duplicate_of": prev["name"]})
+            _write_csv(results_csv, results)
             continue
         tp, vp = persons_of(cfg)
         res = train_one_config(cfg, runs_root / cfg["name"], root, tp, vp)
