@@ -13,6 +13,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app.i18n import translator
+
 CHROME = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           "/Applications/Chromium.app/Contents/MacOS/Chromium",
           "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"]
@@ -95,8 +97,9 @@ def _nice(x):
     return float((1 if n < 1.5 else 2 if n < 3.5 else 5 if n < 7.5 else 10) * p)
 
 
-def build(job: dict, res: dict, files: list, out_dir: Path, base_url: str) -> Path:
-    """보고서 HTML(+근거 이미지)을 out_dir에 만든다. 반환: HTML 경로."""
+def build(job: dict, res: dict, files: list, out_dir: Path, base_url: str, lang: str = "ko") -> Path:
+    """보고서 HTML(+근거 이미지)을 out_dir에 만든다(lang: ko · en). 반환: HTML 경로."""
+    t = translator(lang)
     out_dir.mkdir(parents=True, exist_ok=True)
     m, s = res["meta"], res["summary"]
     unit = "mm" if m["mm_calibrated"] else "mm*"
@@ -111,27 +114,27 @@ def build(job: dict, res: dict, files: list, out_dir: Path, base_url: str) -> Pa
         seg = [i for i, f in enumerate(fr) if b["t0"] <= f["t"] <= b["t1"] and not f["reasons"] and f["diam_mm"] is not None]
         if seg:
             imax = max(seg, key=lambda i: fr[i]["diam_mm"]); imin = min(seg, key=lambda i: fr[i]["diam_mm"])
-            ev += [(imax, f"대표 박동 {res['beats'].index(b) + 1} · 최대 내경(수축기)"), (imin, f"대표 박동 {res['beats'].index(b) + 1} · 최소 내경(이완기)")]
+            ev += [(imax, t("대표 박동 {0} · 최대 내경(수축기)", res["beats"].index(b) + 1)), (imin, t("대표 박동 {0} · 최소 내경(이완기)", res["beats"].index(b) + 1))]
     for r in [r for r in res["review"] if r["kind"] == "구간"][:2]:
-        ev.append((r["frame"], "검토 필요 · " + ", ".join(r["reasons_ko"])))
+        ev.append((r["frame"], t("검토 필요") + " · " + ", ".join(t(x) for x in r["reasons_ko"])))
     figs = []
     for k, (i, cap) in enumerate(ev):
         p = out_dir / f"ev{k}.jpg"
         evidence_image(cv2.imread(files[i], cv2.IMREAD_GRAYSCALE), res["contours"][i], fr[i], p, unit)
         d = fr[i]["diam_mm"]
-        figs.append(f'<figure><img src="{p.name}"><figcaption><b>{html.escape(cap)}</b><span>{fr[i]["t"]:.2f} s · 프레임 {i + 1} · 내경 {_fx(d)} {unit}</span></figcaption></figure>')
+        figs.append(f'<figure><img src="{p.name}"><figcaption><b>{html.escape(cap)}</b><span>{t("{0} s · 프레임 {1} · 내경 {2} {3}", _fx(fr[i]["t"]), i + 1, _fx(d), unit)}</span></figcaption></figure>')
 
     appr = job.get("approval")
     edited = sum(1 for f in fr if f.get("edited"))
-    stamp = (f'<div class="stamp done">의료진 검토 완료</div>' if appr else '<div class="stamp">AI 분석 초안 · 의료진 검토 전</div>')
-    rows = lambda pairs: "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in pairs)
-    meta_rows = rows([("분석 번호", job["id"]), ("영상", html.escape(job["name"])), ("형식 · 장비", f'{m["format"]} · {html.escape(m["device"])}'),
-                      ("길이 · 프레임", f'{m["duration_s"]:.1f} s · {m["n_frames"]} 프레임'),
-                      ("mm 보정", f'{m["mm_per_px"]:.4f} mm/px · {html.escape(m["mm_source"])}'),
+    stamp = (f'<div class="stamp done">{t("의료진 검토 완료")}</div>' if appr else f'<div class="stamp">{t("AI 분석 초안 · 의료진 검토 전")}</div>')
+    rows = lambda pairs: "".join(f"<tr><th>{t(k)}</th><td>{v}</td></tr>" for k, v in pairs)
+    meta_rows = rows([("분석 번호", job["id"]), ("영상", html.escape(t(job["name"]))), ("형식 · 장비", f'{m["format"]} · {html.escape(t(m["device"]))}'),
+                      ("길이 · 프레임", f'{m["duration_s"]:.1f} s · {t("{0} 프레임", m["n_frames"])}'),
+                      ("mm 보정", f'{m["mm_per_px"]:.4f} mm/px · {html.escape(t(m["mm_source"]))}'),
                       ("모델", html.escape(m.get("model", ""))), ("분석 일시", job["created"]),
-                      ("사람이 고친 프레임", f"{edited}장" if edited else "없음")])
-    cell = lambda k, v, u="": f'<div><span>{k}</span><b>{v}<small>{u}</small></b></div>'
-    summary = (f'<div class="verdict {"ok" if ok else "no"}"><span>판정</span><b>{s["status"]}</b></div>'
+                      ("사람이 고친 프레임", t("{0}장", edited) if edited else t("없음"))])
+    cell = lambda k, v, u="": f'<div><span>{t(k)}</span><b>{v}<small>{u}</small></b></div>'
+    summary = (f'<div class="verdict {"ok" if ok else "no"}"><span>{t("판정")}</span><b>{t(s["status"])}</b></div>'
                + cell("최소 내경 · 이완기", _fx(s.get("dmin_mm")) if ok else "—", unit)
                + cell("최대 내경 · 수축기", _fx(s.get("dmax_mm")) if ok else "—", unit)
                + cell("변화량", _fx(s.get("delta_mm")) if ok else "—", unit)
@@ -140,21 +143,22 @@ def build(job: dict, res: dict, files: list, out_dir: Path, base_url: str) -> Pa
     beat_rows = "".join(
         f'<tr><td class="n">{i + 1}</td><td class="n">{_fx(b["t0"])}</td><td class="n">{_fx(b["dmin"])}</td><td class="n">{_fx(b["dmax"])}</td>'
         f'<td class="n">{_fx(b["delta"])}</td><td class="n">{_fx(b["dur_s"])}</td>'
-        f'<td>{"신뢰" if b["reliable"] else "검토 · " + ", ".join(BKO.get(r, r) for r in b["reasons"])}</td></tr>'
-        for i, b in enumerate(res["beats"])) or '<tr><td colspan="7">박동을 찾지 못함</td></tr>'
-    rev_rows = "".join(f'<tr><td class="n">{_fx(r["t0"])} – {_fx(r["t1"])}</td><td>{r["kind"]}</td><td>{", ".join(r["reasons_ko"])}</td></tr>'
-                       for r in res["review"]) or '<tr><td colspan="3">없음</td></tr>'
+        f'<td>{t("신뢰") if b["reliable"] else t("검토") + " · " + ", ".join(t(BKO.get(r, r)) for r in b["reasons"])}</td></tr>'
+        for i, b in enumerate(res["beats"])) or f'<tr><td colspan="7">{t("박동을 찾지 못함")}</td></tr>'
+    rev_rows = "".join(f'<tr><td class="n">{_fx(r["t0"])} – {_fx(r["t1"])}</td><td>{t(r["kind"])}</td><td>{", ".join(t(x) for x in r["reasons_ko"])}</td></tr>'
+                       for r in res["review"]) or f'<tr><td colspan="3">{t("없음")}</td></tr>'
     notes = []
     if not m["mm_calibrated"]:
-        notes.append(f"mm* — {html.escape(m['mm_source'])}. 수치는 참고값입니다.")
+        notes.append(t("mm* — {0}. 수치는 참고값입니다.", html.escape(t(m["mm_source"]))))
     if not ok:
-        notes.append("믿을 수 있는 박동이 2개 미만이라 요약값을 내지 않았습니다.")
-    sign = (f'<div class="sign"><div><span>검토자</span><b>{html.escape(appr["reviewer"])}</b></div>'
-            f'<div><span>검토 일시</span><b>{appr["time"]}</b></div>'
-            f'<div class="wide"><span>의견</span><p>{html.escape(appr.get("comment") or "—")}</p></div></div>'
-            if appr else '<div class="sign empty"><div><span>검토자</span><b>&nbsp;</b></div><div><span>검토 일시</span><b>&nbsp;</b></div><div class="wide"><span>의견</span><p>&nbsp;</p></div></div>')
+        notes.append(t("믿을 수 있는 박동이 2개 미만이라 요약값을 내지 않았습니다."))
+    sign = (f'<div class="sign"><div><span>{t("검토자")}</span><b>{html.escape(appr["reviewer"])}</b></div>'
+            f'<div><span>{t("검토 일시")}</span><b>{appr["time"]}</b></div>'
+            f'<div class="wide"><span>{t("의견")}</span><p>{html.escape(appr.get("comment") or "—")}</p></div></div>'
+            if appr else f'<div class="sign empty"><div><span>{t("검토자")}</span><b>&nbsp;</b></div><div><span>{t("검토 일시")}</span><b>&nbsp;</b></div><div class="wide"><span>{t("의견")}</span><p>&nbsp;</p></div></div>')
 
-    doc = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>경동맥 내경 측정 보고서 {job['id']}</title>
+    cnt = f'({len(res["review"])})' if lang == "en" else f'({len(res["review"])}곳)'
+    doc = f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{t("경동맥 내경 측정 보고서")} {job['id']}</title>
 <style>
 @font-face {{ font-family: Pretendard; src: url("{base_url}/static/fonts/PretendardVariable.woff2") format("woff2-variations"); font-weight: 45 920; }}
 @page {{ size: A4; margin: 14mm 14mm 16mm; }}
@@ -189,21 +193,21 @@ table.t td {{ border-bottom: 1px solid #e8ebef; padding: 3px 6px; }} .n {{ text-
 footer {{ margin-top: 14px; font-size: 8pt; color: #8691a1; }}
 .pb {{ break-before: page; }}
 </style></head><body>
-<header><div><h1>경동맥 내경 측정 보고서</h1><p>Carotid lumen diameter · 연구용 소프트웨어 · 진단을 대체하지 않음</p></div>{stamp}</header>
+<header><div><h1>{t("경동맥 내경 측정 보고서")}</h1><p>{t("Carotid lumen diameter · 연구용 소프트웨어 · 진단을 대체하지 않음")}</p></div>{stamp}</header>
 <table class="meta">{meta_rows}</table>
 <div class="summary">{summary}</div>
 {"".join(f'<p class="note">{n}</p>' for n in notes)}
-<h2>프레임별 내경</h2>{chart_svg(res, unit)}
-<div class="key"><i style="background:#1d4f8c;height:6px;width:6px;border-radius:50%"></i>측정 프레임<i style="background:#c0392b"></i>제외 프레임<i style="background:#c27a12"></i>검토 필요 구간<i style="background:#8d96a3"></i>혈관 없음·횡단면<i style="background:#1d7a4f;width:2px;height:9px"></i>박동 시작</div>
-<h2>근거 장면</h2><div class="figs">{"".join(figs) or "<p>표시할 장면 없음</p>"}</div>
-<h2 class="pb">박동별 내경 ({unit})</h2>
-<table class="t"><thead><tr><th class="n">#</th><th class="n">시작 s</th><th class="n">최소</th><th class="n">최대</th><th class="n">변화량</th><th class="n">주기 s</th><th>판정</th></tr></thead><tbody>{beat_rows}</tbody></table>
-<h2>검토 필요 ({len(res["review"])}곳)</h2>
-<table class="t"><thead><tr><th class="n">시간 s</th><th>종류</th><th>사유</th></tr></thead><tbody>{rev_rows}</tbody></table>
-<h2>판독 확인</h2>{sign}
-<footer>측정 방법: 내강 분할 → 혈관 축 가운데 50% 구간의 수직 폭 중앙값. 신뢰도 판정: 프레임(혈관 없음·횡단면·확신도) · 시간(내경·위치·모양 급변) · 박동(제외 비율·주기·변화량). 믿을 수 있는 박동만 요약에 사용.</footer>
+<h2>{t("프레임별 내경")}</h2>{chart_svg(res, unit)}
+<div class="key"><i style="background:#1d4f8c;height:6px;width:6px;border-radius:50%"></i>{t("측정 프레임")}<i style="background:#c0392b"></i>{t("제외 프레임")}<i style="background:#c27a12"></i>{t("검토 필요 구간")}<i style="background:#8d96a3"></i>{t("혈관 없음·횡단면")}<i style="background:#1d7a4f;width:2px;height:9px"></i>{t("박동 시작")}</div>
+<h2>{t("근거 장면")}</h2><div class="figs">{"".join(figs) or f"<p>{t('표시할 장면 없음')}</p>"}</div>
+<h2 class="pb">{t("박동별 내경")} ({unit})</h2>
+<table class="t"><thead><tr><th class="n">#</th><th class="n">{t("시작 s")}</th><th class="n">{t("최소")}</th><th class="n">{t("최대")}</th><th class="n">{t("변화량")}</th><th class="n">{t("주기 s")}</th><th>{t("판정")}</th></tr></thead><tbody>{beat_rows}</tbody></table>
+<h2>{t("검토 필요")} {cnt}</h2>
+<table class="t"><thead><tr><th class="n">{t("시간 s")}</th><th>{t("종류")}</th><th>{t("사유")}</th></tr></thead><tbody>{rev_rows}</tbody></table>
+<h2>{t("판독 확인")}</h2>{sign}
+<footer>{t("측정 방법: 내강 분할 → 혈관 축 가운데 50% 구간의 수직 폭 중앙값. 신뢰도 판정: 프레임(혈관 없음·횡단면·확신도) · 시간(내경·위치·모양 급변) · 박동(제외 비율·주기·변화량). 믿을 수 있는 박동만 요약에 사용.")}</footer>
 </body></html>"""
-    p = out_dir / "report.html"
+    p = out_dir / ("report_en.html" if lang == "en" else "report.html")
     p.write_text(doc, encoding="utf-8")
     return p
 
