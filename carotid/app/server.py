@@ -382,7 +382,7 @@ def report_pdf(jid: str, lang: str = "ko"):
     if not report.to_pdf(f"http://127.0.0.1:{PORT}/api/jobs/{jid}/report/{page.name}", pdf):
         return FileResponse(page)       # Chrome이 없으면 HTML(브라우저에서 인쇄)
     done = bool(jobs[jid].get("approval"))
-    state = ("reviewed" if done else "AI_draft") if lang == "en" else ("검토완료" if done else "AI초안")
+    state = "reviewed" if done else "AI_draft"
     return FileResponse(pdf, media_type="application/pdf", filename=f"carotid_{jid}_{state}.pdf",
                         content_disposition_type="inline")
 
