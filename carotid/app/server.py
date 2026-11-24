@@ -1,7 +1,7 @@
-"""경동맥 내경 자동 측정 — 로컬 웹 앱 서버 (계획서 14절, 2026-11-18).
+"""경동맥 내경 자동 측정 — 로컬 웹 앱 서버 (2026-11-18).
 
 영상 입력 → 전체 프레임 분석(백그라운드) → 박동별 내경 요약 · 검토 구간 · 경계 겹쳐 보기.
-경계 수정 후 재계산 · mm 수동 보정 · 의료진 승인 · 분석 PDF · 폴더 자동 감시(계획서 14절 1~8).
+경계 수정 후 재계산 · mm 수동 보정 · 의료진 승인 · 분석 PDF · 폴더 자동 감시.
 영상은 이 컴퓨터 밖으로 나가지 않는다(127.0.0.1에서만 열림). 분석 작업은 app_data/jobs/ (커밋 제외)에 저장.
 
 실행:
@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app import report
+from app.i18n import LANGS
 from app.ingest import load_any
 from app.watch import FolderWatcher
 from src.measure import analyze, measure_masks
@@ -369,17 +370,19 @@ def report_file(jid: str, name: str):
 
 
 @app.get("/api/jobs/{jid}/report.pdf")
-def report_pdf(jid: str):
+def report_pdf(jid: str, lang: str = "ko"):
     if jid not in jobs or jobs[jid]["status"] != "done":
         raise HTTPException(400, "분석이 끝난 뒤에 만들 수 있습니다")
+    lang = lang if lang in LANGS else "ko"
     d = JOBS / jid
     res = json.load(open(d / "result.json"))
-    report.build(jobs[jid], res, json.loads((d / "files.json").read_text()), d / "report", f"http://127.0.0.1:{PORT}")
-    pdf = d / "report" / "report.pdf"
+    page = report.build(jobs[jid], res, json.loads((d / "files.json").read_text()), d / "report", f"http://127.0.0.1:{PORT}", lang)
+    pdf = page.with_suffix(".pdf")
     pdf.unlink(missing_ok=True)
-    if not report.to_pdf(f"http://127.0.0.1:{PORT}/api/jobs/{jid}/report/report.html", pdf):
-        return FileResponse(d / "report" / "report.html")       # Chrome이 없으면 HTML(브라우저에서 인쇄)
-    state = "검토완료" if jobs[jid].get("approval") else "AI초안"
+    if not report.to_pdf(f"http://127.0.0.1:{PORT}/api/jobs/{jid}/report/{page.name}", pdf):
+        return FileResponse(page)       # Chrome이 없으면 HTML(브라우저에서 인쇄)
+    done = bool(jobs[jid].get("approval"))
+    state = "reviewed" if done else "AI_draft"
     return FileResponse(pdf, media_type="application/pdf", filename=f"carotid_{jid}_{state}.pdf",
                         content_disposition_type="inline")
 

@@ -27,7 +27,11 @@
   .bar h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
   .bar .sub { font-size: 12.5px; color: #93a6c2; margin-left: 2px; }
   .bar .right { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: #93a6c2; }
+  .lang { display: flex; border: 1px solid #3c5579; border-radius: 3px; overflow: hidden; }
+  .lang button { border: 0; background: none; color: #93a6c2; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+  .lang button.on { background: #dbe4f1; color: var(--navy-900); font-weight: 600; }
   .stamp { border: 1px solid #3c5579; color: #dbe4f1; padding: 3px 9px; border-radius: 3px; font-size: 12px; letter-spacing: .02em; }
+  .stamp.done { background: #dbe4f1; border-color: #dbe4f1; color: var(--navy-900); font-weight: 600; }
 
   .shell { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: 24px; padding: 22px 24px 28px; align-items: start; }
 
@@ -103,7 +107,7 @@
   .track .beat { width: 2px; background: #6f9bd6; }
   .track .now { width: 2px; background: #fff; top: -2px; bottom: -2px; }
   .transport { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #0d131c; color: #c5cfdc; }
-  .transport button { border: 1px solid #2b384b; background: #18222f; color: #e5ebf3; border-radius: 3px; padding: 5px 11px; cursor: pointer; }
+  .transport button { border: 1px solid #2b384b; background: #18222f; color: #e5ebf3; border-radius: 3px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
   .transport button:hover { background: #223043; }
   .transport select { flex: none; background: #18222f; border-color: #2b384b; color: #e5ebf3; padding: 5px 6px; }
   .transport input[type=range] { flex: 1; min-width: 80px; accent-color: #9fb9de; }
@@ -179,7 +183,8 @@
     <path d="M13 10 V16" stroke="#f2c94c" stroke-width="1.4"/><path d="M11 10 H15 M11 16 H15" stroke="#f2c94c" stroke-width="1.4"/>
   </svg>
   <h1>경동맥 내경 측정</h1><span class="sub">Carotid lumen diameter · 연구용</span>
-  <div class="right"><span class="stamp">AI 분석 초안 · 판독 전</span><span id="model"></span></div>
+  <div class="right"><span class="stamp" id="stamp">AI 분석 초안 · 판독 전</span><span id="model"></span>
+    <div class="lang" id="lang" role="group" aria-label="Language"><button data-lang="ko" lang="ko">한국어</button><button data-lang="en" lang="en">English</button></div></div>
 </div>
 
 <div class="shell">
@@ -297,27 +302,66 @@ const fx = (v, d = 2) => (v == null || Number.isNaN(v)) ? '—' : v.toFixed(d);
 const RKO = { no_vessel: '혈관 없음', not_long: '종단면 아님', low_conf: '확신도 낮음', diam_jump: '내경 급변', motion: '탐촉자 이동', shape: '모양 급변' };
 const BKO = { beat_valid: '제외 프레임 많음', beat_len: '주기 이상', beat_amp: '변화량 이상', edge: '영상 끝' };
 const MONO = '"SF Mono", ui-monospace, Menlo, monospace';
+
+/* ── 한국어 · 영어 ─────────────────────────
+   원문은 한국어. 영어는 static/i18n/en.json(보고서와 공용)에서 찾고, 없으면 한국어 그대로 나온다.
+   서버가 보낸 문장(상태·장비·오류)도 저장은 한국어, 표시할 때만 바꾼다. */
+let lang = 'ko', EN = { text: {}, patterns: {} }, PAT = [];
+try { if (localStorage.getItem('lang') === 'en') lang = 'en'; } catch {}
+const fill = (s, a) => s.replace(/\{(\d)\}/g, (_, i) => a[i]);
+function t(s, ...a) {
+  if (lang === 'en' && s) {
+    if (s in EN.text) s = EN.text[s];
+    else if (!a.length) for (const [rx, v] of PAT) { const m = rx.exec(s); if (m) return fill(v, m.slice(1).map(x => t(x))); }
+  }
+  return a.length ? fill(s, a) : s;
+}
+async function loadEN() {
+  EN = await api('/static/i18n/en.json', { cache: 'no-cache' });
+  PAT = Object.entries(EN.patterns).map(([k, v]) => [new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{\d\}/g, '(.*)') + '$'), v]);
+}
+// 화면에 고정된 문구: 처음 한 번 한국어 원문을 모아 두고 언어가 바뀔 때마다 다시 쓴다
+const FIXED = [];
+{
+  const ko = /[가-힣]/, w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT,
+    n => n.parentElement.closest('script, #lang') || !ko.test(n.data) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT);
+  while (w.nextNode()) { const n = w.currentNode, s = n.data; FIXED.push(() => { n.data = s.replace(s.trim(), () => t(s.trim())); }); }
+  for (const a of ['title', 'placeholder']) document.querySelectorAll(`[${a}]`).forEach(el => { const s = el.getAttribute(a); if (ko.test(s)) FIXED.push(() => el.setAttribute(a, t(s))); });
+}
+function applyLang() {
+  document.documentElement.lang = lang; document.title = t('경동맥 내경 측정');
+  FIXED.forEach(f => f());
+  $('lang').querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.lang === lang); b.setAttribute('aria-pressed', b.dataset.lang === lang); });
+  $('play').textContent = t(playing ? '정지' : '재생'); $('editBtn').textContent = t(editing ? '수정 끝내기' : '경계 수정');
+  showIntro(); stamp(); watchUI(); renderJobs();
+  if (R) { head(); strip(); review(); beats(); chart(); approval(); draw(); }
+}
 let cur = null, R = null, J = null, idx = 0, playing = false, imgs = [], unit = 'mm';
 
 /* ── 분석 목록 ───────────────────────────── */
+let JS = null;
+function renderJobs() {
+  const js = JS; if (!js) return;
+  $('jobs').innerHTML = js.map(j => {
+    let st;
+    if (j.status === 'done') { const s = j.summary || {}; st = `<i class="${s.status === '자동측정' ? 'ok' : 'no'}">${t(s.status)}</i> · ${t('신뢰 박동 {0}/{1}', s.n_reliable, s.n_beats)}`; }
+    else if (j.status === 'error') st = `<i class="err">${t(j.message)}</i>`;
+    else st = `${t(j.message)} · ${Math.round(j.progress * 100)}%`;
+    const bar = (j.status === 'running' || j.status === 'queued') ? `<div class="prog"><i style="width:${j.progress * 100}%"></i></div>` : '';
+    return `<li data-id="${j.id}" class="${cur === j.id ? 'on' : ''}"><div class="nm">${t(j.name)}</div>
+      <div class="st">${j.created.slice(5, 16).replace('-', '.')} · ${st}</div>${bar}<button class="del" data-del="${j.id}" title="${t('목록에서 삭제')}">×</button></li>`;
+  }).join('') || `<li class="empty-msg">${t('아직 분석한 영상이 없습니다.')}</li>`;
+}
 async function refreshJobs() {
   let js = [];
   try { js = await api('/api/jobs'); } catch { setTimeout(refreshJobs, 3000); return; }
-  $('jobs').innerHTML = js.map(j => {
-    let st;
-    if (j.status === 'done') { const s = j.summary || {}; st = `<i class="${s.status === '자동측정' ? 'ok' : 'no'}">${s.status}</i> · 신뢰 박동 ${s.n_reliable}/${s.n_beats}`; }
-    else if (j.status === 'error') st = `<i class="err">${j.message}</i>`;
-    else st = `${j.message} · ${Math.round(j.progress * 100)}%`;
-    const bar = (j.status === 'running' || j.status === 'queued') ? `<div class="prog"><i style="width:${j.progress * 100}%"></i></div>` : '';
-    return `<li data-id="${j.id}" class="${cur === j.id ? 'on' : ''}"><div class="nm">${j.name}</div>
-      <div class="st">${j.created.slice(5, 16).replace('-', '.')} · ${st}</div>${bar}<button class="del" data-del="${j.id}" title="목록에서 삭제">×</button></li>`;
-  }).join('') || '<li class="empty-msg">아직 분석한 영상이 없습니다.</li>';
+  JS = js; renderJobs();
   if (cur && !R) { const j = js.find(x => x.id === cur); if (j && j.status === 'done') openJob(cur); }
   setTimeout(refreshJobs, js.some(j => j.status === 'running' || j.status === 'queued') ? 700 : 4000);
 }
 $('jobs').addEventListener('click', async e => {
   const del = e.target.dataset.del;
-  if (del) { e.stopPropagation(); if (confirm('이 분석을 목록에서 지울까요?')) { await fetch('/api/jobs/' + del, { method: 'DELETE' }); if (cur === del) { cur = null; R = null; intro(); } refreshJobs(); } return; }
+  if (del) { e.stopPropagation(); if (confirm(t('이 분석을 목록에서 지울까요?'))) { await fetch('/api/jobs/' + del, { method: 'DELETE' }); if (cur === del) { cur = null; R = null; intro(); } refreshJobs(); } return; }
   const li = e.target.closest('li[data-id]'); if (li) openJob(li.dataset.id);
 });
 function start(job) { cur = job.id; R = null; intro('분석 중입니다', '모든 프레임을 분석하고 있습니다. 왼쪽 목록에서 진행률을 볼 수 있고, 끝나면 결과가 자동으로 열립니다.'); refreshJobs(); }
@@ -329,7 +373,14 @@ drop.addEventListener('drop', e => e.dataTransfer.files[0] && upload(e.dataTrans
 $('file').addEventListener('change', e => e.target.files[0] && upload(e.target.files[0]));
 async function upload(f) { const fd = new FormData(); fd.append('file', f); start(await api('/api/upload', { method: 'POST', body: fd })); }
 const INTRO = [$('introTitle').textContent, $('introText').textContent];
-function intro(title, text) { $('view').hidden = true; $('intro').hidden = false; $('introTitle').textContent = title || INTRO[0]; $('introText').textContent = text || INTRO[1]; }
+let introNow = INTRO;       // 지금 첫 화면에 띄운 문구(한국어 원문)
+// 상단 띠: 지금 열린 분석이 검토 완료면 그 상태로, 그 밖에는 초안
+function stamp() {
+  const done = !!(R && J && J.approval);
+  $('stamp').textContent = t(done ? '의료진 검토 완료' : 'AI 분석 초안 · 판독 전'); $('stamp').classList.toggle('done', done);
+}
+function showIntro() { $('introTitle').textContent = t(introNow[0]); $('introText').textContent = t(introNow[1]); }
+function intro(title, text) { $('view').hidden = true; $('intro').hidden = false; introNow = [title || INTRO[0], text || INTRO[1]]; showIntro(); stamp(); }
 
 /* ── 결과 ───────────────────────────────── */
 async function openJob(id, keep = false) {
@@ -339,51 +390,54 @@ async function openJob(id, keep = false) {
   document.querySelectorAll('.jobs li').forEach(li => li.classList.toggle('on', li.dataset.id === id));
   if (j.status !== 'done') { R = null; j.status === 'error' ? intro('분석하지 못했습니다', j.message) : intro('분석 중입니다', '끝나면 결과가 자동으로 열립니다.'); return; }
   R = await api(`/api/jobs/${id}/result`); J = j;
-  if (keepIdx == null) imgs = new Array(R.frames.length);
+  if (keepIdx == null) { imgs = new Array(R.frames.length); idx = 0; }     // 앞서 보던 영상이 더 길면 idx가 범위를 벗어남
   const m = R.meta; unit = m.mm_calibrated ? 'mm' : 'mm*';
   $('cv').width = m.width; $('cv').height = m.height; $('slider').max = R.frames.length - 1;
-  $('jobName').textContent = j.name;
-  $('jobMeta').innerHTML = [m.format, m.device, `${fx(m.duration_s, 1)} s`, `${m.n_frames} 프레임`, m.mm_calibrated ? `${m.mm_per_px.toFixed(4)} mm/px` : 'mm 보정 미확정']
-    .map(x => `<span>${x}</span>`).join('');
   $('intro').hidden = true; $('view').hidden = false;
-  strip(); review(); beats(); chart(); track(); fitScope(); approval();
+  head(); strip(); review(); beats(); chart(); track(); fitScope(); approval();
   if (keepIdx != null) return go(keepIdx);
   const b = R.beats.find(b => b.reliable); go(b ? b.frame_peak : 0);
 }
 
+function head() {
+  const m = R.meta;
+  $('jobName').textContent = t(J.name);
+  $('jobMeta').innerHTML = [m.format, t(m.device), `${fx(m.duration_s, 1)} s`, t('{0} 프레임', m.n_frames), m.mm_calibrated ? `${m.mm_per_px.toFixed(4)} mm/px` : t('mm 보정 미확정')]
+    .map(x => `<span>${x}</span>`).join('');
+}
 function strip() {
   const s = R.summary, ok = s.status === '자동측정';
-  const c = (k, v, u = '') => `<div><div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`;
-  $('strip').innerHTML = `<div class="verdict ${ok ? 'ok' : 'no'}"><div class="k">판정</div><div class="v">${s.status}</div></div>` +
+  const c = (k, v, u = '') => `<div><div class="k">${t(k)}</div><div class="v">${v}<small>${u}</small></div></div>`;
+  $('strip').innerHTML = `<div class="verdict ${ok ? 'ok' : 'no'}"><div class="k">${t('판정')}</div><div class="v">${t(s.status)}</div></div>` +
     c('최소 내경 · 이완기', ok ? fx(s.dmin_mm) : '—', unit) + c('최대 내경 · 수축기', ok ? fx(s.dmax_mm) : '—', unit) +
     c('변화량', ok ? fx(s.delta_mm) : '—', unit) + c('심박수', ok ? fx(s.hr_bpm, 0) : '—', 'bpm') +
     c('신뢰 박동', s.n_reliable, `/ ${s.n_beats}`) + c('측정 프레임', Math.round(100 * s.frames_ok / s.n_frames), '%');
-  const n = [...(R.meta.notes || [])];
-  if (!R.meta.mm_calibrated) n.push(`mm* — ${R.meta.mm_source}. 수치는 참고값입니다.<span class="calib">mm/px <input id="mmIn" value="${R.meta.mm_per_px}"><button class="btn line" id="mmBtn">적용</button></span>`);
+  const n = (R.meta.notes || []).map(x => t(x));
+  if (!R.meta.mm_calibrated) n.push(`${t('mm* — {0}. 수치는 참고값입니다.', t(R.meta.mm_source))}<span class="calib">mm/px <input id="mmIn" value="${R.meta.mm_per_px}"><button class="btn line" id="mmBtn">${t('적용')}</button></span>`);
   const ne = R.frames.filter(f => f.edited).length;
-  if (ne) n.push(`사람이 경계를 고친 프레임 ${ne}장이 반영되어 있습니다.`);
-  if (J && J.approval_cleared && !J.approval) n.push(`결과가 바뀌어 검토 완료가 해제되었습니다 (${J.approval_cleared}). 다시 확인 후 검토 완료 처리하세요.`);
-  if (!ok) n.push('믿을 수 있는 박동이 2개 미만이라 요약값을 내지 않았습니다. 아래 검토 목록을 확인하세요.');
+  if (ne) n.push(t('사람이 경계를 고친 프레임 {0}장이 반영되어 있습니다.', ne));
+  if (J && J.approval_cleared && !J.approval) n.push(t('결과가 바뀌어 검토 완료가 해제되었습니다 ({0}). 다시 확인 후 검토 완료 처리하세요.', J.approval_cleared));
+  if (!ok) n.push(t('믿을 수 있는 박동이 2개 미만이라 요약값을 내지 않았습니다. 아래 검토 목록을 확인하세요.'));
   $('notes').innerHTML = n.map(x => `<p class="note">${x}</p>`).join('');
   if ($('mmBtn')) $('mmBtn').onclick = async () => {
     const v = parseFloat($('mmIn').value);
-    if (!(v >= 0.01 && v <= 1)) return alert('mm/px는 0.01~1.0 사이 값으로 입력하세요.');
-    if (!confirm(`mm/px를 ${v}로 바꾸고 측정을 다시 계산할까요?`)) return;
+    if (!(v >= 0.01 && v <= 1)) return alert(t('mm/px는 0.01~1.0 사이 값으로 입력하세요.'));
+    if (!confirm(t('mm/px를 {0}로 바꾸고 측정을 다시 계산할까요?', v))) return;
     await post(`/api/jobs/${cur}/calibration`, { mm_per_px: v }); openJob(cur, true);
   };
 }
 function review() {
-  $('nrev').textContent = `${R.review.length}곳`;
+  $('nrev').textContent = t('{0}곳', R.review.length);
   $('rev').innerHTML = R.review.map(r => `<tr data-f="${r.frame}"><td class="t">${fx(r.t0)} – ${fx(r.t1)}</td>
-    <td><span class="kind ${r.kind === '박동' ? 'beat' : ''}">${r.kind}</span></td><td>${r.reasons_ko.join(' · ')}</td></tr>`).join('')
-    || '<tr><td colspan="3" class="empty-msg">검토가 필요한 장면이 없습니다.</td></tr>';
+    <td><span class="kind ${r.kind === '박동' ? 'beat' : ''}">${t(r.kind)}</span></td><td>${r.reasons_ko.map(x => t(x)).join(' · ')}</td></tr>`).join('')
+    || `<tr><td colspan="3" class="empty-msg">${t('검토가 필요한 장면이 없습니다.')}</td></tr>`;
 }
 function beats() {
-  $('hbeat').textContent = `단위 ${unit} · 신뢰 ${R.summary.n_reliable} / ${R.beats.length}`;
+  $('hbeat').textContent = t('단위 {0} · 신뢰 {1} / {2}', unit, R.summary.n_reliable, R.beats.length);
   $('beats').innerHTML = R.beats.map((b, i) => `<tr data-f="${b.frame_peak}"><td class="n">${i + 1}</td><td class="n">${fx(b.t0)}</td><td class="n">${fx(b.dmin)}</td>
     <td class="n">${fx(b.dmax)}</td><td class="n">${fx(b.delta)}</td><td class="n">${fx(b.dur_s)}</td>
-    <td>${b.reliable ? '<span class="flag ok">신뢰</span>' : `<span class="flag no">검토</span><span class="why">${b.reasons.map(r => BKO[r] || r).join(', ')}</span>`}</td></tr>`).join('')
-    || '<tr><td colspan="7" class="empty-msg">박동을 찾지 못했습니다.</td></tr>';
+    <td>${b.reliable ? `<span class="flag ok">${t('신뢰')}</span>` : `<span class="flag no">${t('검토')}</span><span class="why">${b.reasons.map(r => t(BKO[r] || r)).join(', ')}</span>`}</td></tr>`).join('')
+    || `<tr><td colspan="7" class="empty-msg">${t('박동을 찾지 못했습니다.')}</td></tr>`;
 }
 $('rev').addEventListener('click', e => { const tr = e.target.closest('tr[data-f]'); if (tr) { stop(); go(+tr.dataset.f); } });
 $('beats').addEventListener('click', e => { const tr = e.target.closest('tr[data-f]'); if (tr) { stop(); go(+tr.dataset.f); } });
@@ -442,10 +496,10 @@ function overlay(ctx, f, W) {
   lines.forEach(([s, c], i) => { ctx.fillStyle = c; ctx.fillText(s, x0, 10 * k + i * lh); });
   // 오른쪽 위: 이 프레임의 판정(진한 칸) + 속한 박동의 판정
   const none = f.reasons.includes('no_vessel');
-  const label = (good ? '신뢰 프레임' : '제외 · ' + f.reasons.map(r => RKO[r] || r).join(' · ')) + (f.edited ? ' · 수정됨' : '');
+  const label = (good ? t('신뢰 프레임') : t('제외') + ' · ' + f.reasons.map(r => t(RKO[r] || r)).join(' · ')) + (f.edited ? ' · ' + t('수정됨') : '');
   const beat = R.beats.findIndex(b => f.t >= b.t0 && f.t < b.t1);
-  const sub = beat < 0 ? '박동 구간 밖' : `박동 ${beat + 1} · ` + (R.beats[beat].reliable ? '요약에 포함'
-            : '검토: ' + R.beats[beat].reasons.map(r => BKO[r] || r).join(', '));
+  const sub = beat < 0 ? t('박동 구간 밖') : t('박동 {0}', beat + 1) + ' · ' + (R.beats[beat].reliable ? t(R.summary.status === '자동측정' ? '요약에 포함' : '신뢰(요약값 없음)')
+            : t('검토: {0}', R.beats[beat].reasons.map(r => t(BKO[r] || r)).join(', ')));
   ctx.font = `600 ${13.5 * k}px Pretendard, sans-serif`;
   const pw = 9 * k, bw = ctx.measureText(label).width + pw * 2, bh = 24 * k, bx = ctx.canvas.width - bw - 8 * k, by = 8 * k;
   ctx.fillStyle = good ? '#1d4f8c' : none ? '#5b6575' : '#a86400'; ctx.fillRect(bx, by, bw, bh);
@@ -479,11 +533,11 @@ $('prev').onclick = () => { stop(); endEdit(); go(idx - 1); };
 $('next').onclick = () => { stop(); endEdit(); go(idx + 1); };
 $('ovSeg').onchange = $('ovCal').onchange = draw;
 let w0 = 0, v0 = 0;
-function stop() { playing = false; $('play').textContent = '재생'; }
+function stop() { playing = false; $('play').textContent = t('재생'); }
 $('play').onclick = () => {
   if (playing) return stop();
   if (idx >= R.frames.length - 1) idx = 0;
-  playing = true; $('play').textContent = '정지'; w0 = performance.now(); v0 = R.frames[idx].t;
+  playing = true; $('play').textContent = t('정지'); w0 = performance.now(); v0 = R.frames[idx].t;
   const tick = () => {
     if (!playing) return;
     const t = v0 + (performance.now() - w0) / 1000 * +$('speed').value;
@@ -507,7 +561,7 @@ document.addEventListener('keydown', e => {
 let X, W; const H = 230, M = { l: 48, r: 16, t: 12, b: 26 };
 function chart() {
   const svg = $('chart'); W = svg.clientWidth || 900; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  $('chartUnit').textContent = `단위 ${unit}`;
+  $('chartUnit').textContent = t('단위 {0}', unit);
   const fr = R.frames, T = fr[fr.length - 1].t || 1;
   const okd = fr.filter(f => !f.reasons.length && Number.isFinite(f.diam_mm)).map(f => f.diam_mm);
   const src = okd.length > 5 ? okd : fr.filter(f => Number.isFinite(f.diam_mm)).map(f => f.diam_mm);
@@ -547,7 +601,7 @@ $('chart').addEventListener('click', e => { stop(); go(frameAt(e)); });
 $('chart').addEventListener('mousemove', e => {
   const f = R.frames[frameAt(e)], tip = $('tip'), pr = $('chart').parentElement.getBoundingClientRect();
   tip.style.display = 'block'; tip.style.left = (e.clientX - pr.left) + 'px'; tip.style.top = (e.clientY - pr.top - 10) + 'px';
-  tip.textContent = `${fx(f.t)} s  ${Number.isFinite(f.diam_mm) ? fx(f.diam_mm) + ' ' + unit : '—'}${f.reasons.length ? '  ' + f.reasons.map(x => RKO[x] || x).join('·') : ''}`;
+  tip.textContent = `${fx(f.t)} s  ${Number.isFinite(f.diam_mm) ? fx(f.diam_mm) + ' ' + unit : '—'}${f.reasons.length ? '  ' + f.reasons.map(x => t(RKO[x] || x)).join(lang === 'en' ? ' · ' : '·') : ''}`;
 });
 $('chart').addEventListener('mouseleave', () => $('tip').style.display = 'none');
 window.addEventListener('resize', () => { if (R) { chart(); fitScope(); } });
@@ -557,7 +611,7 @@ function fitScope() { $('scope').style.maxWidth = Math.round(innerHeight * .64 *
 /* ── 경계 수정 (선택 7) ───────────────────── */
 let editing = false, pts = [], drag = -1;
 const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) })
-  .then(async r => { if (!r.ok) { const t = await r.json().catch(() => ({})); alert(t.detail || '실패했습니다'); throw new Error(r.status); } return r.json(); });
+  .then(async r => { if (!r.ok) { const d = await r.json().catch(() => ({})); alert(typeof d.detail === 'string' ? t(d.detail) : t('실패했습니다')); throw new Error(r.status); } return r.json(); });
 $('editBtn').onclick = () => {
   if (!R) return;
   if (editing) return endEdit();
@@ -565,17 +619,17 @@ $('editBtn').onclick = () => {
   const c = R.contours[idx] || [];
   if (c.length > 2) { const n = Math.min(36, c.length); pts = Array.from({ length: n }, (_, k) => [...c[Math.floor(k * c.length / n)]]); }
   else { const W = R.meta.width, H = R.meta.height; pts = [[W * .2, H * .35], [W * .5, H * .33], [W * .8, H * .35], [W * .8, H * .5], [W * .5, H * .52], [W * .2, H * .5]]; }
-  $('editbar').classList.add('on'); $('scope').classList.add('editing'); $('editBtn').textContent = '수정 끝내기';
+  $('editbar').classList.add('on'); $('scope').classList.add('editing'); $('editBtn').textContent = t('수정 끝내기');
   $('eReset').hidden = !R.frames[idx].edited; draw();
 };
-function endEdit() { if (!editing) return; editing = false; drag = -1; $('editbar').classList.remove('on'); $('scope').classList.remove('editing'); $('editBtn').textContent = '경계 수정'; draw(); }
+function endEdit() { if (!editing) return; editing = false; drag = -1; $('editbar').classList.remove('on'); $('scope').classList.remove('editing'); $('editBtn').textContent = t('경계 수정'); draw(); }
 function editOverlay(ctx, W) {
   const k = W / 730;
   ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
   ctx.fillStyle = 'rgba(242,201,76,.12)'; ctx.fill(); ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 1.4 * k; ctx.stroke();
   for (const [x, y] of pts) { const r = 3.5 * k; ctx.fillStyle = '#111927'; ctx.fillRect(x - r, y - r, 2 * r, 2 * r); ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 1.2 * k; ctx.strokeRect(x - r, y - r, 2 * r, 2 * r); }
   ctx.font = `600 ${13.5 * k}px Pretendard, sans-serif`; ctx.fillStyle = '#f2c94c'; ctx.textBaseline = 'top';
-  ctx.fillText(`경계 수정 중 · 프레임 ${idx + 1}`, 10 * k, 10 * k);
+  ctx.fillText(t('경계 수정 중 · 프레임 {0}', idx + 1), 10 * k, 10 * k);
 }
 const cpos = e => { const cv = $('cv'), r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
 const near = (p, tol) => { let b = -1, bd = tol; pts.forEach((q, i) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bd) { bd = d; b = i; } }); return b; };
@@ -597,16 +651,16 @@ $('cv').addEventListener('dblclick', e => {
 });
 $('eCancel').onclick = endEdit;
 $('eSave').onclick = async () => { await post(`/api/jobs/${cur}/frames/${idx}/mask`, { polygon: pts }); openJob(cur, true); };
-$('eEmpty').onclick = async () => { if (confirm('이 프레임을 "혈관 없음"으로 바꿀까요?')) { await post(`/api/jobs/${cur}/frames/${idx}/mask`, { empty: true }); openJob(cur, true); } };
+$('eEmpty').onclick = async () => { if (confirm(t('이 프레임을 "혈관 없음"으로 바꿀까요?'))) { await post(`/api/jobs/${cur}/frames/${idx}/mask`, { empty: true }); openJob(cur, true); } };
 $('eReset').onclick = async () => { await post(`/api/jobs/${cur}/frames/${idx}/reset`); openJob(cur, true); };
 
 /* ── 보고서 · 검토 완료 (필수 2 · 선택 8) ──────── */
-$('pdfBtn').onclick = () => { $('pdfBtn').textContent = 'PDF 만드는 중…'; open(`/api/jobs/${cur}/report.pdf?t=${Date.now()}`, '_blank'); setTimeout(() => $('pdfBtn').textContent = 'PDF 보고서', 2500); };
+$('pdfBtn').onclick = () => { $('pdfBtn').textContent = t('PDF 만드는 중…'); open(`/api/jobs/${cur}/report.pdf?lang=${lang}&t=${Date.now()}`, '_blank'); setTimeout(() => $('pdfBtn').textContent = t('PDF 보고서'), 2500); };
 function approval() {
-  const a = J && J.approval;
-  $('appr').innerHTML = a ? `<b>의료진 검토 완료</b>${a.reviewer} · ${a.time} <button class="linkbtn" id="unAppr">해제</button>`
-                          : `<button class="btn" id="doAppr">검토 완료 처리</button>`;
-  if (a) $('unAppr').onclick = async () => { if (confirm('검토 완료를 해제할까요?')) { await fetch(`/api/jobs/${cur}/approve`, { method: 'DELETE' }); openJob(cur, true); } };
+  const a = J && J.approval; stamp();
+  $('appr').innerHTML = a ? `<b>${t('의료진 검토 완료')}</b>${a.reviewer} · ${a.time} <button class="linkbtn" id="unAppr">${t('해제')}</button>`
+                          : `<button class="btn" id="doAppr">${t('검토 완료 처리')}</button>`;
+  if (a) $('unAppr').onclick = async () => { if (confirm(t('검토 완료를 해제할까요?'))) { await fetch(`/api/jobs/${cur}/approve`, { method: 'DELETE' }); openJob(cur, true); } };
   else $('doAppr').onclick = () => { $('rvName').value = localStorage.getItem('reviewer') || ''; $('rvNote').value = ''; $('dlg').showModal(); };
 }
 $('dlg').addEventListener('close', async () => {
@@ -618,21 +672,27 @@ $('dlg').addEventListener('close', async () => {
 /* ── 폴더 자동 분석 (선택 6) ──────────────────── */
 async function watchUI() {
   const w = await api('/api/watch');
-  if (w.path) { $('wpath').value = w.path; $('wbtn').textContent = '중지'; $('wstat').innerHTML = '<b>● 감시 중</b> — 새 파일이 생기면 자동으로 분석합니다.'; }
-  else { if (w.saved && !$('wpath').value) $('wpath').value = w.saved; $('wbtn').textContent = '감시'; $('wstat').textContent = '이 폴더에 새 영상 파일이 생기면 자동으로 분석합니다.'; }
+  if (w.path) { $('wpath').value = w.path; $('wbtn').textContent = t('중지'); $('wstat').innerHTML = `<b>${t('● 감시 중')}</b> — ${t('새 파일이 생기면 자동으로 분석합니다.')}`; }
+  else { if (w.saved && !$('wpath').value) $('wpath').value = w.saved; $('wbtn').textContent = t('감시'); $('wstat').textContent = t('이 폴더에 새 영상 파일이 생기면 자동으로 분석합니다.'); }
 }
 $('wbtn').onclick = async () => {
   const w = await api('/api/watch');
   if (w.path) await fetch('/api/watch', { method: 'DELETE' }); else await post('/api/watch', { path: $('wpath').value.trim() });
   watchUI();
 };
-watchUI();
 
 /* ── 시작 ───────────────────────────────── */
 api('/api/info').then(i => $('model').textContent = `model · ${i.model}`);
 api('/api/demos').then(ds => $('demo').innerHTML = ds.map(d => `<option value="${d.video_id}">${d.person_id} · ${d.video_id} · ${d.format} · ${d.duration_s.toFixed(0)} s</option>`).join(''));
-refreshJobs();
-if (location.hash.length > 1) openJob(location.hash.slice(1));
+$('lang').addEventListener('click', e => {
+  const l = e.target.dataset.lang; if (!l || l === lang) return;
+  lang = l; try { localStorage.setItem('lang', l); } catch {}
+  applyLang();
+});
+loadEN().catch(() => {}).then(() => {      // 사전을 읽은 뒤 그려야 영어로 시작할 때 한국어가 섞이지 않는다
+  applyLang(); refreshJobs();
+  if (location.hash.length > 1) openJob(location.hash.slice(1));
+});
 </script>
 </body>
 </html>

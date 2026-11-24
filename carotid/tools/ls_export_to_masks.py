@@ -1,4 +1,4 @@
-"""Label Studio 내보내기(JSON) → PNG 마스크 + 세트 반영 (계획서 7·10절).
+"""Label Studio 내보내기(JSON) → PNG 마스크 + 세트 반영.
 
 - 이미지 이름(001_P003_V03_frame_0215.png)으로 manifest/label_<batch>.csv 에서 원래 프레임을 찾음
   (Label Studio가 업로드 시 붙이는 'abcd1234-' 접두어는 자동 제거)
@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NAME_RE = re.compile(r"(\d{3}_P\d{3}_V\d{2}_frame_\d+\.png)$")
 GRADES = ("A", "B", "C", "F", "X")
 X_REASONS = {"X", "동맥·정맥 구분 불가", "다른 혈관과 구분 불가", "기타(메모에 기록)"}   # label_config.xml
-TOTAL_LABELS = 495 + 20   # 계획서 9절 목표 전체 + 반복 라벨
+TOTAL_LABELS = 495 + 20   # 목표 전체 + 반복 라벨
 
 def first(results, name, key):
     for r in results:
@@ -91,7 +91,7 @@ def main():
     n_abc = stats["A"] + stats["B"] + stats["C"]
     if n_abc:
         lines.append(f"  C 비율(A·B·C 중): {stats['C'] / n_abc:.0%}"
-                     + ("  ← 50% 초과: A가 부족해질 수 있음(계획서 9절 A 45% 이상 목표)" if stats["C"] / n_abc > 0.5 else ""))
+                     + ("  ← 50% 초과: A가 부족해질 수 있음" if stats["C"] / n_abc > 0.5 else ""))
     if times:
         per = mean(times)
         lines += [f"장당 작업 시간: 평균 {per:.0f}초, 중앙값 {median(times):.0f}초 (n={len(times)})",
