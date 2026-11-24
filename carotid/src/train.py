@@ -1,5 +1,5 @@
 """
-학습 루프 — 단일 실행, 하이퍼파라미터 탐색, 교차검증, 학습 곡선 (계획서 11·15절).
+학습 루프 — 단일 실행, 하이퍼파라미터 탐색, 교차검증, 학습 곡선.
 
 구조 (Dataset 2개 · loop 2개):
   train Dataset : 학습 9명, A·B·C·F, 증강, 256 크롭, 사람별 균형 추출
@@ -259,7 +259,7 @@ def train_one_config(cfg: dict, run_dir: Path, root: Path = ROOT,
             **{k: state["best_summary"].get(k, float("nan")) for k in METRIC_KEYS}}
 
 
-# ── 설정 선택 규칙 (계획서 11절 `선택 기준`, 사전 고정) ─────────────────────────
+# ── 설정 선택 규칙 (사전 고정) ─────────────────────────
 
 def _f(x):
     try:

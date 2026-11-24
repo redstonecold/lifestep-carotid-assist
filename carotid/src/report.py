@@ -1,5 +1,5 @@
 """
-보고서용 표·그림 생성 (계획서 11절 `보고서 산출물`).
+보고서용 표·그림 생성.
 
 검증 결과(학습 중 저장된 프레임 원자료)로 표·그림 만들기:
     python -m src.report --frames runs/<설정>/val_frames.csv --history runs/<설정>/history.csv --out reports/results/val
@@ -17,7 +17,7 @@
     python -m src.report --jitter --checkpoint runs/<설정>/best.pt --video V20 --start 280 --out reports/results/val
 
 출력: 표는 CSV + Markdown(tables.md), 그림은 PNG.
-박동별 변화량 MAE(표 2)는 박동 분할(계획서 12절) 구현 후 추가한다.
+박동별 변화량 MAE(표 2)는 박동 분할 구현 후 추가한다.
 실행 위치: carotid/ 폴더
 """
 
@@ -326,7 +326,7 @@ def main():
         return run_jitter(a.checkpoint, a.video, a.start, a.out)
     if a.evaluate:
         if a.split == "test":
-            print("[주의] 시험 P004 평가는 모든 결정이 끝난 뒤 한 번만 한다(계획서 6절).")
+            print("[주의] 시험 P004 평가는 모든 결정이 끝난 뒤 한 번만 한다.")
         rows, images, preds, gts = run_evaluate(a.checkpoint, a.split)
         a.out.mkdir(parents=True, exist_ok=True)
         _write(a.out / f"{a.split}_frames.csv", rows)

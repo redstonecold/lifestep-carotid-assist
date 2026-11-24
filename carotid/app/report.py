@@ -1,4 +1,4 @@
-"""분석 보고서(HTML → PDF) — 계획서 14절 `보고서` (필수 2, 선택 8).
+"""분석 보고서(HTML → PDF).
 
 - 상태: `AI 분석 초안`(기본) 또는 `의료진 검토 완료`(승인 후, 검토자·일시·의견 표시)
 - 내용: 영상 정보 · 요약값 · 내경 그래프 · 근거 프레임(신뢰 박동의 최대·최소 내경, 검토 구간 대표 장면) · 박동 표 · 검토 목록
@@ -191,7 +191,7 @@ table.t td {{ border-bottom: 1px solid #e8ebef; padding: 3px 6px; }} .n {{ text-
 .sign span {{ display: block; font-size: 8pt; color: #8691a1; }} .sign b {{ display: block; min-height: 18px; border-bottom: 1px solid #b7c0cc; }}
 .sign .wide {{ grid-column: 1 / -1; }} .sign p {{ margin: 0; min-height: 30px; border-bottom: 1px solid #b7c0cc; }}
 footer {{ margin-top: 14px; font-size: 8pt; color: #8691a1; }}
-.pb {{ break-before: page; }}
+.pb {{ break-before: page; }} .end {{ break-inside: avoid; }}
 </style></head><body>
 <header><div><h1>{t("경동맥 내경 측정 보고서")}</h1><p>{t("Carotid lumen diameter · 연구용 소프트웨어 · 진단을 대체하지 않음")}</p></div>{stamp}</header>
 <table class="meta">{meta_rows}</table>
@@ -204,8 +204,8 @@ footer {{ margin-top: 14px; font-size: 8pt; color: #8691a1; }}
 <table class="t"><thead><tr><th class="n">#</th><th class="n">{t("시작 s")}</th><th class="n">{t("최소")}</th><th class="n">{t("최대")}</th><th class="n">{t("변화량")}</th><th class="n">{t("주기 s")}</th><th>{t("판정")}</th></tr></thead><tbody>{beat_rows}</tbody></table>
 <h2>{t("검토 필요")} {cnt}</h2>
 <table class="t"><thead><tr><th class="n">{t("시간 s")}</th><th>{t("종류")}</th><th>{t("사유")}</th></tr></thead><tbody>{rev_rows}</tbody></table>
-<h2>{t("판독 확인")}</h2>{sign}
-<footer>{t("측정 방법: 내강 분할 → 혈관 축 가운데 50% 구간의 수직 폭 중앙값. 신뢰도 판정: 프레임(혈관 없음·횡단면·확신도) · 시간(내경·위치·모양 급변) · 박동(제외 비율·주기·변화량). 믿을 수 있는 박동만 요약에 사용.")}</footer>
+<div class="end"><h2>{t("판독 확인")}</h2>{sign}
+<footer>{t("측정 방법: 내강 분할 → 혈관 축 가운데 50% 구간의 수직 폭 중앙값. 신뢰도 판정: 프레임(혈관 없음·횡단면·확신도) · 시간(내경·위치·모양 급변) · 박동(제외 비율·주기·변화량). 믿을 수 있는 박동만 요약에 사용.")}</footer></div>
 </body></html>"""
     p = out_dir / ("report_en.html" if lang == "en" else "report.html")
     p.write_text(doc, encoding="utf-8")

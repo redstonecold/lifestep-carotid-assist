@@ -1,4 +1,4 @@
-"""영상 파일(DICOM · AVI · WMV) → 초음파 영역만 자른 흑백 프레임 + 프레임 시각 + mm/px (계획서 13절).
+"""영상 파일(DICOM · AVI · WMV) → 초음파 영역만 자른 흑백 프레임 + 프레임 시각 + mm/px.
 
 - DICOM: 초음파 영역(SequenceOfUltrasoundRegions)만 잘라 화면 위쪽 기관명·이름을 제거, mm/px = PhysicalDeltaX(cm)×10,
          프레임 시각 = FrameTimeVector 누적값(간격이 고르지 않음). 환자 정보 태그는 읽지 않는다

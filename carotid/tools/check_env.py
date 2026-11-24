@@ -2,8 +2,8 @@
 
 1. U-Net + ResNet34 ImageNet 사전학습 가중치를 받아 models/pretrained/ 에 저장
 2. Apple GPU(MPS) 사용 가능 여부 확인
-3. 계획서 고정값(배치 8, 입력 256) 과 입력 384 로 학습 1스텝 시간·메모리 측정
-4. 1회 학습 시간(계획서 예상 15~20분) 추정
+3. 고정값(배치 8, 입력 256) 과 입력 384 로 학습 1스텝 시간·메모리 측정
+4. 1회 학습 시간 추정
 결과는 reports/env_check.txt 에 저장된다.
 
 사용: source .venv/bin/activate && python tools/check_env.py [--offline]
@@ -73,7 +73,7 @@ def main():
             log(f"입력 {size}, 배치 {batch}: 실패 ({str(e).splitlines()[0][:80]})")
         if dev.type == "mps": torch.mps.empty_cache()
 
-    log("\n=== 1회 학습 시간 추정 (계획서 예상: 15~20분) ===")
+    log("\n=== 1회 학습 시간 추정 ===")
     if (256, 8) in results:
         for n_labels in (100, 150, 300):
             steps_per_epoch = -(-n_labels // 8)

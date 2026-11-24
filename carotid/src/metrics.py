@@ -1,5 +1,5 @@
 """
-검증·평가 지표 (계획서 11절 `검증 지표`, 설명 자료 부록 C).
+검증·평가 지표.
 
 보고 지표 14종
   겹침   Dice · IoU · 정밀도 · 민감도                       (A·B·C)
@@ -20,7 +20,7 @@ import math
 import cv2
 import numpy as np
 
-AREA_MIN_MM2 = 10.0            # 이 넓이 이상 칠하면 "검출" (판단값, 계획서 11절)
+AREA_MIN_MM2 = 10.0            # 이 넓이 이상 칠하면 "검출" (판단값)
 NSD_TAUS_MM  = (0.3, 1.0)      # 원자료로만 저장
 DIAM_MIN_PX  = 50              # 내경을 잴 최소 내강 픽셀 수
 NAN = float("nan")

@@ -1,4 +1,4 @@
-"""초기 모델 초안 → Label Studio 프로젝트 (계획서 9절 3단계: 초안 수정 방식).
+"""초기 모델 초안 → Label Studio 프로젝트.
 
 - manifest/label_<batch>.csv 의 이미지를 초기 모델로 추론하고, 마스크 외곽선을 다각형 초안(prediction)으로 올린다
 - 시험(split=test, P004)은 초안 없이 이미지만 올린다(모델 영향 배제, 직접 그림)
