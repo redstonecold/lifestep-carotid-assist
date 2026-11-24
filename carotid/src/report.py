@@ -192,7 +192,11 @@ def fig_examples(rows, images, preds, gts, path):
             continue
         key = (lambda i: -rows[i]["area_pred_mm2"]) if g == "F" else (lambda i: rows[i]["dice"] if rows[i]["dice"] == rows[i]["dice"] else -1)
         idx.sort(key=key, reverse=True)
-        picks += [(g, "좋은 예", idx[0]), (g, "나쁜 예", idx[-1])]
+        if g == "F":  # 예측 면적이 0이 아니면 가장 작아도 오검출이다
+            ok = lambda i: rows[i]["area_pred_mm2"] == 0
+            picks += [(g, "좋은 예" if ok(idx[0]) else "오검출 예 1", idx[0]), (g, "나쁜 예" if ok(idx[0]) else "오검출 예 2", idx[-1])]
+        else:
+            picks += [(g, "좋은 예", idx[0]), (g, "나쁜 예", idx[-1])]
     if not picks:
         return
     fig, axes = plt.subplots(len(picks) // 2, 2, figsize=(10, 3 * len(picks) // 2), squeeze=False)
