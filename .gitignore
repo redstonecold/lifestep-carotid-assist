@@ -52,7 +52,11 @@ carotid/reports/dicom_inventory.json
 # 도구 상태·로그
 .omc/
 **/.omc/
-.omx/*
-!.omx/plans/
-.omx/plans/.omc/
+.omx/
+# 기획·발표 자료
+carotid/docs/
+carotid/reports/week1_data_inventory.md
+carotid/reports/results/extra/
+carotid/tools/make_slide_images.py
+시연 영상*
 data/.Rhistory
