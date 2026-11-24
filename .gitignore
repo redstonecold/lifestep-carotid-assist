@@ -82,4 +82,7 @@ demo_video*
 *.pdf
 *.mov
 *.mp4
+*.mp3
+*.wav
+*.m4a
 data/.Rhistory
