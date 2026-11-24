@@ -52,7 +52,34 @@ carotid/reports/dicom_inventory.json
 # 도구 상태·로그
 .omc/
 **/.omc/
-.omx/*
-!.omx/plans/
-.omx/plans/.omc/
+.omx/
+
+# ── Kept out of the repository ─────────────────────────
+# Put new private files in local_only/
+local_only/
+carotid/docs/
+carotid/reports/week1_data_inventory.md
+carotid/reports/results/extra/
+carotid/tools/make_slide_images.py
+# Matched by name or type in any folder
+demo_video*
+*proposal*
+*presentation*
+*briefing*
+*script_draft*
+*기획*
+*계획*
+*발표*
+*시연*
+*대본*
+*.ppt
+*.pptx
+*.key
+*.hwp
+*.hwpx
+*.doc
+*.docx
+*.pdf
+*.mov
+*.mp4
 data/.Rhistory
